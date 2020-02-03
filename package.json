@@ -1,0 +1,26 @@
+{
+  "name": "social_chatwebcomponent",
+  "version": "1.0.0",
+  "description": "AllexJS web component for the Chat functionality",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/social-webcomponents/chat.git"
+  },
+  "keywords": [
+    "ecosystem:AllexJS",
+    "social",
+    "chat",
+    "web",
+    "component"
+  ],
+  "author": "Andrija Petrovic <andrija.hers@gmail.com>",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/social-webcomponents/chat/issues"
+  },
+  "homepage": "https://github.com/social-webcomponents/chat#readme"
+}

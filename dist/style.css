@@ -1,0 +1,189 @@
+.Chat{
+  width: 100%;
+  margin-left: 0px;
+  margin-right: 0px;
+  border: solid gray 1px;
+  position: absolute;
+  overflow: auto;
+  height: 80vh;
+}
+
+.Chat .Header {
+  position: -webkit-sticky;
+  position: sticky;
+  top: 0;
+  height: 50px;
+  background-color: lightgreen;
+  border-bottom: solid gray 1px;
+  padding: 5px;
+  z-index: 10;
+}
+
+.Chats {
+  border-right: solid gray 1px;
+  padding: 10px;
+  position: -webkit-sticky;
+  position: sticky;
+  top: 0;
+  background-color: lightyellow;
+}
+
+.ChatHistory {
+  padding: 0px !important;
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.ScrollableChatColumn{
+  overflow: auto;
+  height: 100%;
+}
+
+.ChatMessage {
+  overflow: auto;
+}
+
+.Messages {
+  padding: 10px;
+}
+
+.messages-mychat {
+  background-color: lightblue;
+  float: right;
+}
+
+.messages-otherschat {
+  background-color: lightgreen;
+  float: left; 
+}
+
+.single-message-bubble {
+  margin-bottom: 3px;
+}
+
+.SendMessageForm {
+  position: sticky;
+  bottom: 0;
+  border-top: solid gray 1px;
+  background-color: lightyellow;
+  z-index: 10;
+  height: 60px;
+}
+
+.SendMessageTextArea {
+  position: absolute;
+  width: 80%;
+  height: 100%;
+  top:0;
+  left:0;
+  border: 0;
+  border-right: solid gray 1px;
+  resize: none;
+}
+
+.SendMessageButton {
+  position: absolute;
+  width: 20%;
+  height: 100%;
+  top:0;
+  right:0;
+}
+
+.messages-messageago {
+  font-weight: italic;
+  font-size: 12px;
+  padding-left: 12px;
+  vertical-align: bottom;
+}
+
+.chat-brief {
+  margin-left: 0px;
+  margin-right: 0px;
+}
+
+.chat-brief-container {
+  height: 60px;
+  padding-left: 0px;
+  padding-right: 0px;
+  margin-bottom: 5px;
+}
+
+.profile-pic-container {
+  border: solid gray;
+  border-radius: 50%;
+  display: inline-block;
+  position: relative;
+  width: 60px;
+  height: 60px;
+}
+
+.profile-pic-dummy {
+  padding-bottom: 100%;
+}
+
+.profile-pic-content {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  text-align: center;
+  display:-ms-flexbox;
+  -ms-flex-pack:center;
+  -ms-flex-align:center;
+
+  /* Firefox */
+  display:-moz-box;
+  -moz-box-pack:center;
+  -moz-box-align:center;
+
+  /* Safari, Opera, and Chrome */
+  display:-webkit-box;
+  -webkit-box-pack:center;
+  -webkit-box-align:center;
+
+  /* W3C */
+  display:box;
+  box-pack:center;
+  box-align:center;
+
+  text-transform: capitalize;
+}
+
+.profile-nick-and-last-message-container {
+  left: 80px;
+  top: 15px;
+  padding-left: 10px;
+  width: calc(100% - 60px);
+}
+
+.chat-brief-col {
+}
+
+.profile-nick {
+  font-weight: bold;
+}
+
+.lastmessage-messageago {
+  font-style: italic;
+  font-size: 12px;
+  position: relative;
+  float: right;
+  bottom: 47px;
+}
+
+/*wildcard, every class that starts with lastmessage*/
+[class^="lastmessage"] .chatmessage {
+  position: relative;
+  width: 100%;
+  display: block;
+}
+
+.truncate {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
