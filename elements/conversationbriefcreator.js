@@ -1,39 +1,29 @@
-function createChatConversationBrief (lib, applib, templateslib, htmltemplateslib, utils) {
+function createChatConversationBrief (lib, applib, templateslib, htmltemplateslib, chatweblib, utils) {
   'use strict';
 
   var DataAwareElement = applib.getElementType('DataAwareElement'),
     o = templateslib.override,
     p = templateslib.process,
-    m = htmltemplateslib;
+    m = htmltemplateslib,
+    ChatConversationBriefMixin = chatweblib.mixins.ChatConversationBrief;
 
 
   function ChatConversationBriefElement (id, options) {
     DataAwareElement.call(this, id, options);
-    this.selected = new lib.HookCollection();
+    ChatConversationBriefMixin.call(this);
   }
   lib.inherit(ChatConversationBriefElement, DataAwareElement);
+  ChatConversationBriefMixin.addMethods(ChatConversationBriefElement);
   ChatConversationBriefElement.prototype.__cleanUp = function () {
-    if (this.$element) {
-      this.$element.off('click');
-    }
-    if (this.selected) {
-      this.selected.destroy();
-    }
-    this.selected = null;
+    ChatConversationBriefMixin.prototype.destroy.call(this);
     DataAwareElement.prototype.__cleanUp.call(this);
   };
-  ChatConversationBriefElement.prototype.fireInitializationDone = function () {
-    if (this.$element) {
-      this.$element.on('click', this.onElementClicked.bind(this));
-    }
-    return DataAwareElement.prototype.fireInitializationDone.call(this);
-  };
-  ChatConversationBriefElement.prototype.onElementClicked = function () {
-    this.selected.fire(this);
+  ChatConversationBriefElement.prototype.set_data = function (data) {
+    ChatConversationBriefMixin.prototype.handleConversationData.call(this, data);
+    return DataAwareElement.prototype.set_data.call(this, data);
   };
 
-
-  applib.registerElementType('ChatConversationBrief', ChatConversationBriefElement);
+  applib.registerElementType('ChatConversationBriefElement', ChatConversationBriefElement);
 
 }
 

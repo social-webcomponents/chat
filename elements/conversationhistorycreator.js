@@ -7,7 +7,9 @@ function createChatConversationHistory (lib, applib, templateslib, htmltemplates
   function ChatConversationHistoryElement (id, options) {
     DataAwareElement.call(this, id, options);
     DataElementFollowerMixin.call(this);
-    this.needMessages = new lib.HookCollection();
+    this.needMessages = this.createBufferableHookCollection();
+    this.messageSeen = this.createBufferableHookCollection();
+    this.conversationChanged = this.createBufferableHookCollection();
     this.send = new lib.HookCollection();
     this.chatId = null;
     this.oldestMessageId = null;
@@ -21,6 +23,14 @@ function createChatConversationHistory (lib, applib, templateslib, htmltemplates
       this.send.destroy();
     }
     this.send = null;
+    if (this.conversationChanged) {
+      this.conversationChanged.destroy();
+    }
+    this.conversationChanged = null;
+    if (this.messageSeen) {
+      this.messageSeen.destroy();
+    }
+    this.messageSeen();
     if (this.needMessages) {
       this.needMessages.destroy();
     }
@@ -29,15 +39,21 @@ function createChatConversationHistory (lib, applib, templateslib, htmltemplates
     DataAwareElement.prototype.__cleanUp.call(this);
   };
   ChatConversationHistoryElement.prototype.onMasterDataChanged = function (data) {
-    console.log('oli onMasterDataChanged?', data);
-    if (data.id !== this.chatId) {
-      this.chatId = data.id;
+    if (!lib.isVal(data)) {
+      this.chatId = null;
+      this.set('data', data);
+      return;
+    }
+    if (data.id !== this.chatId && data.chatId !== this.chatId) {
+      this.chatId = data.chatId || data.id;
+      this.conversationChanged.fire(this.chatId);
       this.askForMessages();
     }
     this.set('data', data);
   };
   ChatConversationHistoryElement.prototype.askForMessages = function () {
-    this.needMessages.fire({id: this.chatId, oldest: this.oldestMessageId, howmany: this.getConfigVal('pagesize')});
+    var oldest = lib.isNumber(this.oldestMessageId) ? this.oldestMessageId-1 : null;
+    this.needMessages.fire({id: this.chatId, oldest: oldest, howmany: this.getConfigVal('pagesize')});
   };
 
   applib.registerElementType('ChatConversationHistory', ChatConversationHistoryElement);

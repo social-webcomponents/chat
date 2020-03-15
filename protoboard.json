@@ -6,7 +6,8 @@
     "js": [
       "allex:app:lib",
       "allex:templateslite:lib",
-      "allex:htmltemplates:lib"
+      "allex:htmltemplates:lib",
+      "social:chat:weblib"
     ]
   },
   "additionaltargets": {

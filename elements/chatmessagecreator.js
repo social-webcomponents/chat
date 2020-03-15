@@ -1,4 +1,4 @@
-function createChatMessageElement (lib, applib, templateslib, htmltemplateslib, utils) {
+function createChatMessageElement (lib, applib, templateslib, htmltemplateslib, chatweblib, utils) {
   'use strict';
 
   var DataAwareElement = applib.getElementType('DataAwareElement'),
@@ -28,7 +28,7 @@ function createChatMessageElement (lib, applib, templateslib, htmltemplateslib, 
       'CLASS', messageagoclass,
       'CONTENTS', '{{item.created_humanreadable}}'
     )];
-    if (!options.skipSenderName){
+    if (options && !options.skipSenderName){
       retContent.unshift(o(m.div,
         'CLASS', senderclass,
         'ATTRS', 'style="display:{{!!item.from ? \"block\" : \"none\"}}"',
@@ -49,6 +49,7 @@ function createChatMessageElement (lib, applib, templateslib, htmltemplateslib, 
   }
   lib.inherit(ChatMessageElement, DataAwareElement);
   ChatMessageElement.prototype.set_data = function (item) {
+    item.message = chatweblib.processMessage(item.message);
     this.updateHumanReadableCreated(item);
     return DataAwareElement.prototype.set_data.call(this, item);
   };

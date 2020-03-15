@@ -20,11 +20,17 @@ function createChatConversationsElement (lib, applib, templateslib, htmltemplate
 
   function ChatConversationsElement (id, options) {
     FromDataCreator.call(this, id, options);
-    this.selected = new lib.HookCollection();
+    this.selected = this.createBufferableHookCollection();
+    this.needGroupCandidates = this.createBufferableHookCollection();
     this.selectedItemId = null;
   }
   lib.inherit(ChatConversationsElement, FromDataCreator);
   ChatConversationsElement.prototype.__cleanUp = function () {
+    this.selectedItemId = null;
+    if (this.needGroupCandidates){
+      this.needGroupCandidates.destroy();
+    }
+    this.needGroupCandidates = null;
     if (this.selected) {
       this.selected.destroy();
     }
@@ -43,7 +49,7 @@ function createChatConversationsElement (lib, applib, templateslib, htmltemplate
   };
 
 
-  applib.registerElementType('ChatConversations', ChatConversationsElement);
+  applib.registerElementType('ChatConversationsElement', ChatConversationsElement);
 }
 
 module.exports = createChatConversationsElement;
