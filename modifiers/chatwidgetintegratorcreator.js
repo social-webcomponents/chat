@@ -12,19 +12,25 @@ function createChatWidgetIntegrator (lib, applib) {
   lib.inherit(ChatWidgetIntegratorModifier, BasicModifier);
 
   ChatWidgetIntegratorModifier.prototype.doProcess = function(name, options, links, logic, resources){
-    var pp = this.config.chatwidgetparentpath,
+    var rlm = this.config.chatrealm,
+      pp = this.config.chatwidgetparentpath,
       chatinterfacename = this.config.interfacename || 'Chat';
+
+    if (!rlm) {
+      throw new Error('ChatWidgetIntegrator must have a "chatrealm" name in its config');
+    }
+    rlm = 'On'+rlm;
 
     logic.push({
       triggers: pp+'.'+chatinterfacename+'!needInitiations',
-      references: '.>initiateChatConversationsWithUsers',
+      references: '.>initiateChatConversationsWithUsers'+rlm,
       handler: function (getChatConversations, userids) {
         console.log('needInitiations', userids);
         //getChatConversations([need]);
         getChatConversations([userids]);
       }
     },{
-      triggers: '.>initiateChatConversationsWithUsers',
+      triggers: '.>initiateChatConversationsWithUsers'+rlm,
       references: pp+','+pp+'.'+chatinterfacename,
       handler: function (me, itf, icc) {
         if (!me.get('actual')) {
@@ -37,7 +43,7 @@ function createChatWidgetIntegrator (lib, applib) {
         itf.set('data', icc.result);
       }
     },{
-      triggers: 'datasource.chatnotification:data',
+      triggers: 'datasource.chatnotification'+rlm+':data',
       references: pp+','+pp+'.'+chatinterfacename,
       handler: function(me, itf, chatntf){
         /*
@@ -49,26 +55,26 @@ function createChatWidgetIntegrator (lib, applib) {
       }
     },{
       triggers: pp+'.'+chatinterfacename+'!needMessages',
-      references: '.>getChatMessages',
+      references: '.>getChatMessages'+rlm,
       handler: function (getChatMessages, need) {
         console.log('needMessages', need);
         getChatMessages([need.id, need.oldest, lib.isNumber(need.howmany) ? need.howmany : 20]);
       }
     },{
       triggers: pp+'.'+chatinterfacename+'!messageToSend',
-      references: '.>sendChatMessage',
+      references: '.>sendChatMessage'+rlm,
       handler: function(sendChatMessage, evnt){
         console.log(evnt);
         sendChatMessage([evnt.togroup, evnt.to, evnt.message_text]);
       }
     },{
       triggers: pp+'.'+chatinterfacename+'!messageSeen',
-      references: '.>markMessageSeen',
+      references: '.>markMessageSeen'+rlm,
       handler: function (markMessageSeen, need) {
         markMessageSeen([need.convid, need.msgid]);
       }
     },{
-      triggers: '.>getChatMessages',
+      triggers: '.>getChatMessages'+rlm,
       references: pp+','+pp+'.'+chatinterfacename,
       handler: function (me, itf, gcm) {
         if (!me.get('actual')) {
@@ -105,7 +111,7 @@ function createChatWidgetIntegrator (lib, applib) {
     if (!this.config.skipconversationloading) {
       logic.push({
         triggers: pp+':actual,'+pp+'.'+chatinterfacename+':initialized',
-        references: '.>getChatConversations',
+        references: '.>getChatConversations'+rlm,
         handler: function(gcc, myactual, initialized){
           console.log('Chatinitialized', initialized);
           if (myactual && initialized) {
@@ -114,7 +120,7 @@ function createChatWidgetIntegrator (lib, applib) {
           }
         }
       },{
-        triggers: '.>getChatConversations',
+        triggers: '.>getChatConversations'+rlm,
         references: pp+','+pp+'.'+chatinterfacename,
         handler: function (me, itf, gcc) {
           if (!me.get('actual')) {

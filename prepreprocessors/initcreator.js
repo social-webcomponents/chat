@@ -8,33 +8,35 @@ function createInitChatPrePreprocessor (lib, applib) {
   }
   lib.inherit(InitChatPrePreprocessor, BasicProcessor);
   function commander (envname, rlm, fnname) {
+    console.log(fnname+'On'+rlm);
     return {
       environment: envname,
       entity: {
-        name: fnname, //+rlm,
+        name: fnname+'On'+rlm,
         options: {
           sink: '.',
-          name: fnname //+rlm
+          name: fnname+'On'+rlm
         }
       }
     };
   }
   function allexstatedser (envname, rlm, dsname) {
+    console.log(dsname+'On'+rlm);
     return {
       environment: envname,
       entity: {
-        name: dsname, //+rlm,
+        name: dsname+'On'+rlm,
         type: 'allexstate',
         options: {
           sink: '.',
-          path: dsname //+rlm
+          path: dsname+'On'+rlm
         }
       }
     };
   }
   InitChatPrePreprocessor.prototype.process = function (desc) {
     var env = this.config.environment,
-      rlm = this.config.rwcrealm;
+      rlm = this.config.chatrealm;
     desc.preprocessors = desc.preprocessors || {};
     desc.preprocessors.Command = desc.preprocessors.Command || [];
     desc.preprocessors.DataSource = desc.preprocessors.DataSource || [];
@@ -56,7 +58,7 @@ function createInitChatPrePreprocessor (lib, applib) {
     rlm = null;
   };
 
-  InitChatPrePreprocessor.prototype.neededConfigurationNames = ['environment', 'rwcrealm'];
+  InitChatPrePreprocessor.prototype.neededConfigurationNames = ['environment', 'chatrealm'];
 
   applib.registerPrePreprocessor('ChatInit', InitChatPrePreprocessor);
 }
