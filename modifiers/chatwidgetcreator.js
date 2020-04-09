@@ -110,7 +110,13 @@ function createChatWidget (lib, applib, templateslib, htmltemplateslib, utils) {
         //filter: utils.distinctSenders
       },{
         source: '.'+chatsname+'!selected',
-        target: '.:activechat'
+        target: '.:activechat',
+        filter: function passthru (thingy) {
+          return thingy;
+        }
+      },{
+        source: '.!forgetSelected',
+        target: '.'+chatsname+'>forgetSelected'
       },{
         source: '.'+chatsname+'!needGroupCandidates',
         target: '.!needGroupCandidates'

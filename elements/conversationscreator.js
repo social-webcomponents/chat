@@ -47,6 +47,9 @@ function createChatConversationsElement (lib, applib, templateslib, htmltemplate
     }
     return new ChldWithListener(this, chld);
   };
+  ChatConversationsElement.prototype.forgetSelected = function () {
+    this.selectedItemId = null;
+  };
 
 
   applib.registerElementType('ChatConversationsElement', ChatConversationsElement);

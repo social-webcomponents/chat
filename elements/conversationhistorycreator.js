@@ -30,7 +30,7 @@ function createChatConversationHistory (lib, applib, templateslib, htmltemplates
     if (this.messageSeen) {
       this.messageSeen.destroy();
     }
-    this.messageSeen();
+    this.messageSeen = null;
     if (this.needMessages) {
       this.needMessages.destroy();
     }
@@ -41,7 +41,8 @@ function createChatConversationHistory (lib, applib, templateslib, htmltemplates
   ChatConversationHistoryElement.prototype.onMasterDataChanged = function (data) {
     if (!lib.isVal(data)) {
       this.chatId = null;
-      this.set('data', data);
+      this.set('data', null);
+      this.conversationChanged.fire(null);
       return;
     }
     if (data.id !== this.chatId && data.chatId !== this.chatId) {
@@ -54,6 +55,10 @@ function createChatConversationHistory (lib, applib, templateslib, htmltemplates
   ChatConversationHistoryElement.prototype.askForMessages = function () {
     var oldest = lib.isNumber(this.oldestMessageId) ? this.oldestMessageId-1 : null;
     this.needMessages.fire({id: this.chatId, oldest: oldest, howmany: this.getConfigVal('pagesize')});
+  };
+  ChatConversationHistoryElement.prototype.detachFromChat = function () {
+    this.__parent.detachActiveChat();
+    this.set('data', null);
   };
 
   applib.registerElementType('ChatConversationHistory', ChatConversationHistoryElement);
