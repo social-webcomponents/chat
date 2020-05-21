@@ -126,6 +126,9 @@ function createChatWidget (lib, applib, templateslib, htmltemplateslib, utils) {
         source: '.!forgetSelected',
         target: '.'+chatsname+'>forgetSelected'
       },{
+        source: '.!messageSeen',
+        target: '.'+chatsname+'>handleMessageSeen'
+      },{
         source: '.'+chatsname+'!needGroupCandidates',
         target: '.!needGroupCandidates'
       },{

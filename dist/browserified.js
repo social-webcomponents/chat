@@ -808,11 +808,26 @@ function createChatConversationsElement (lib, applib, templateslib, htmltemplate
     }, useractiver.bind(null, useractiveobj));
     useractiveobj = null;
   };
+  ChatConversationsElement.prototype.handleMessageSeen = function (seenobj) {
+    console.log(this.constructor.name, 'handleMessageSeen', seenobj, this.get('data'));
+    this.traverseSubElementsWithFilter({
+      op: 'eq',
+      field: 'id',
+      value: seenobj.convid
+    }, chldmsgseener);
+  };
   function useractiver (useractiveobj, chld, isok) {
     if (!isok) {
       return;
     }
     chld.chld.showChatUserActivity(useractiveobj);
+  }
+  function chldmsgseener (chld, isok) {
+    if (!isok) {
+      return;
+    }
+    //console.log('chldmsgseener', chld.chld);
+    chld.chld.maybeDecreaseUnreadMessages();
   }
 
   applib.registerElementType('ChatConversationsElement', ChatConversationsElement);
@@ -1017,7 +1032,7 @@ function createSendForm (lib, applib, jquerylib, templateslib, htmltemplateslib,
     this.active = this.createBufferableHookCollection();
   }
   lib.inherit(SendChatMessageFormLogic, FormLogic);
-  SendChatMessageFormLogic.prototype.resetForm = function () {
+  SendChatMessageFormLogic.prototype.__cleanUp = function () {
     if (this.active) {
       this.active.destroy();
     }
@@ -1027,6 +1042,12 @@ function createSendForm (lib, applib, jquerylib, templateslib, htmltemplateslib,
       this.trigger.destroy();
     }
     this.trigger = null;
+    FormLogic.prototype.__cleanUp.call(this);
+  };
+  SendChatMessageFormLogic.prototype.resetForm = function () {
+    if (this.trigger) {
+      this.trigger.clearTimeout();
+    }
     FormLogic.prototype.resetForm.call(this);
   };
   SendChatMessageFormLogic.prototype.set_contents = function (val) {
@@ -1214,6 +1235,9 @@ function createChatWidget (lib, applib, templateslib, htmltemplateslib, utils) {
       },{
         source: '.!forgetSelected',
         target: '.'+chatsname+'>forgetSelected'
+      },{
+        source: '.!messageSeen',
+        target: '.'+chatsname+'>handleMessageSeen'
       },{
         source: '.'+chatsname+'!needGroupCandidates',
         target: '.!needGroupCandidates'

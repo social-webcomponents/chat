@@ -70,11 +70,26 @@ function createChatConversationsElement (lib, applib, templateslib, htmltemplate
     }, useractiver.bind(null, useractiveobj));
     useractiveobj = null;
   };
+  ChatConversationsElement.prototype.handleMessageSeen = function (seenobj) {
+    console.log(this.constructor.name, 'handleMessageSeen', seenobj, this.get('data'));
+    this.traverseSubElementsWithFilter({
+      op: 'eq',
+      field: 'id',
+      value: seenobj.convid
+    }, chldmsgseener);
+  };
   function useractiver (useractiveobj, chld, isok) {
     if (!isok) {
       return;
     }
     chld.chld.showChatUserActivity(useractiveobj);
+  }
+  function chldmsgseener (chld, isok) {
+    if (!isok) {
+      return;
+    }
+    //console.log('chldmsgseener', chld.chld);
+    chld.chld.maybeDecreaseUnreadMessages();
   }
 
   applib.registerElementType('ChatConversationsElement', ChatConversationsElement);

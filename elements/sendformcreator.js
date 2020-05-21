@@ -10,7 +10,7 @@ function createSendForm (lib, applib, jquerylib, templateslib, htmltemplateslib,
     this.active = this.createBufferableHookCollection();
   }
   lib.inherit(SendChatMessageFormLogic, FormLogic);
-  SendChatMessageFormLogic.prototype.resetForm = function () {
+  SendChatMessageFormLogic.prototype.__cleanUp = function () {
     if (this.active) {
       this.active.destroy();
     }
@@ -20,6 +20,12 @@ function createSendForm (lib, applib, jquerylib, templateslib, htmltemplateslib,
       this.trigger.destroy();
     }
     this.trigger = null;
+    FormLogic.prototype.__cleanUp.call(this);
+  };
+  SendChatMessageFormLogic.prototype.resetForm = function () {
+    if (this.trigger) {
+      this.trigger.clearTimeout();
+    }
     FormLogic.prototype.resetForm.call(this);
   };
   SendChatMessageFormLogic.prototype.set_contents = function (val) {
