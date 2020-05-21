@@ -47,7 +47,10 @@ function createInitChatPrePreprocessor (lib, applib) {
       'getChatConversations',
       'sendChatMessage',
       'markMessageRcvd',
-      'markMessageSeen'
+      'markMessageSeen',
+      'editChatMessage',
+      'reportChatActivity',
+      'createNewChatGroupWithMembers'
     ].map(commander.bind(null, env, rlm)));
     desc.preprocessors.DataSource.push.apply(desc.preprocessors.DataSource, [
       'chatnotification',

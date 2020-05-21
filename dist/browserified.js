@@ -1,33 +1,173 @@
 (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
-function createChatMessageElement (lib, applib, templateslib, htmltemplateslib, chatweblib, utils) {
+function createChatMessageElement (lib, applib, templateslib, htmltemplateslib, chatweblib, messageparsinglib, jquerycontextmenulib, utils) {
   'use strict';
 
   var DataAwareElement = applib.getElementType('DataAwareElement'),
+    ContextMenuMixin = jquerycontextmenulib.mixins.ContextMenu,
     o = templateslib.override,
-    m = htmltemplateslib;
+    m = htmltemplateslib,
+    HeartbeatHandlerMixin = chatweblib.mixins.HeartbeatHandler;
 
-  function optionsvalue (options, name, dflt) {
+  function optionsstring (options, name, dflt) {
     var p, ret;
     if (!options) {
       return dflt;
     }
     ret = lib.readPropertyFromDotDelimitedString(options, name);
-    return lib.isVal(ret) ? ret : dflt;
+    return lib.isVal(ret) ? ret+' '+dflt : dflt;
   }
-  function createDataMarkup (options) {
-    var mychatclass = optionsvalue(options, 'class.mychat', 'mychat'),
-      otherschatclass = optionsvalue(options, 'class.otherschat', 'otherschat'),
-      senderclass = optionsvalue(options, 'class.sender', 'chatsender'),
-      chatmessageclass = optionsvalue(options, 'class.chatmessage', 'chatmessage'),
-      messageagoclass = optionsvalue(options, 'class.messageago', 'messageago'),
+  
+  function ChatMessageElement (id, options) {
+    options.elements = options.elements || [];
+    options.data_markup = options.data_markup || this.createDataMarkup(options.data_markup_options);
+    DataAwareElement.call(this, id, options);
+    ContextMenuMixin.call(this);
+    HeartbeatHandlerMixin.call(this);
+    this.MessageParser = new messageparsinglib.Parser();
+    this.dontupdatebefore = Date.now();
+  }
+  lib.inherit(ChatMessageElement, DataAwareElement);
+  ContextMenuMixin.addMethods(ChatMessageElement);
+  HeartbeatHandlerMixin.addMethods(ChatMessageElement);
+  ChatMessageElement.prototype.__cleanUp = function () {
+    this.dontupdatebefore = null;
+    if (this.MessageParser) {
+      this.MessageParser.destroy();
+    }
+    this.MessageParser = null;
+    HeartbeatHandlerMixin.prototype.destroy.call(this);
+    ContextMenuMixin.prototype.destroy.call(this);
+    DataAwareElement.prototype.__cleanUp.call(this);
+  };
+  ChatMessageElement.prototype.set_data = function (item) {
+    var ret;
+    item.message = chatweblib.processMessage(item.message);
+    this.updateHumanReadableCreated(item);
+    ret = DataAwareElement.prototype.set_data.call(this, item);
+    return ret;
+  };
+  /**/
+  ChatMessageElement.prototype.updateFromRcvd = function (rcvdmsg) {
+    var mydata;
+    //console.log('updateFromRcvd?', rcvdmsg);
+    if (!(rcvdmsg && rcvdmsg.messageid)) {
+      return;
+    }
+    mydata = this.get('data');
+    updatercvdseen(mydata, 'rcvd', rcvdmsg);
+    //console.log('gledajsad updateFromRcvd', mydata);
+    this.set_data(mydata);
+  };
+  ChatMessageElement.prototype.updateFromSeen = function (seenmsg) {
+    var mydata;
+    //console.log('updateFromSeen?', seenmsg);
+    if (!(seenmsg && seenmsg.messageid)) {
+      return;
+    }
+    mydata = this.get('data');
+    updatercvdseen(mydata, 'seen', seenmsg);
+    //console.log('gledajsad updateFromSeen', mydata);
+    this.set_data(mydata);
+  };
+  ChatMessageElement.prototype.updateFromEdit = function (editedmsg) {
+    var mydata;
+    if (!(editedmsg && editedmsg.message && editedmsg.moment)) {
+      return;
+    }
+    mydata = this.get('data');
+    if (!lib.isArray(mydata.edits)) {
+      mydata.edits = [[mydata.message, mydata.created]];
+    } else {
+      mydata.edits.push([mydata.message, mydata.created]);
+    }
+    mydata.message = editedmsg.message;
+    mydata.created = editedmsg.moment;
+    this.set_data(mydata);
+  };
+  ChatMessageElement.prototype.updatePreview = function (preview) {
+    var mydata;
+    /*
+    if (!(preview && (preview.title || preview.description || preview.image))) {
+      return;
+    }
+    */
+    mydata = this.get('data');
+    mydata.preview = preview;
+    this.set_data(mydata);
+  };
+  ChatMessageElement.prototype.parseMessage = function (message) {
+    return this.MessageParser.parse(message);
+  };
+  ChatMessageElement.prototype.updateHumanReadableCreated = function (d, now) {
+    var d, had_d, time;
+    if (!this.destroyed) {
+      return;
+    }
+    had_d = !!d;
+    d = d || this.get('data');
+    if (!(d && d.created)) {
+      return;
+    }
+    time = d.lastedited || d.created;
+    if (!had_d) {
+      //this.updateHashField('created_humanreadable', ago(time));
+      //console.log('oli messageago?', this.$element.find('.messageago')[0], '=>', ago(time));
+      this.$element.find('.messageago').text(ago(time));
+      //return;
+    } else {
+      d.created_humanreadable = ago(time);
+    }
+    this.dontupdatebefore = nextupdate(time, now);
+    //lib.runNext(this.updateHumanReadableCreated.bind(this), nexttickinterval(d.created));
+  };
+  ChatMessageElement.prototype.createDataMarkup = function (options) {
+    var mychatclass = optionsstring(options, 'class.mychat', 'mychat'),
+      otherschatclass = optionsstring(options, 'class.otherschat', 'otherschat'),
+      senderclass = optionsstring(options, 'class.sender', 'chatsender'),
+      chatmessageclass = optionsstring(options, 'class.chatmessage', 'chatmessage'),
+      messageagoclass = optionsstring(options, 'class.messageago', 'messageago'),
+      messageeditedclass = optionsstring(options, 'class.messageedited', 'messageedited'),
+      messageseenclass = optionsstring(options, 'class.messageseen', 'messageseen'),
+      messagercvdclass = optionsstring(options, 'class.messagercvd', 'messagercvd'),
       retContent;
 
     retContent = [o(m.span,
       'CLASS', chatmessageclass,
-      'CONTENTS', '{{item.message}}' 
-    ),o(m.span,
-      'CLASS', messageagoclass,
-      'CONTENTS', '{{item.created_humanreadable}}'
+      'CONTENTS', '{{this.parseMessage(item.message)}}'
+    ),o(m.div,
+      'CLASS', 'chatmessagepreview Preview',
+      'ATTRS', 'style="display:{{(item.preview && (item.preview.title || item.preview.description || item.preview.image)) ? \'block\' : \'none\'}}"',
+      'CONTENTS', [o(m.span,
+        'CLASS', 'previewtitle Title',
+        'ATTRS', 'style="display:{{(item.preview && item.preview.title) ? \'block\' : \'none\'}}"',
+        'CONTENTS', '{{item.preview.title}}'
+      ),o(m.span,
+        'CLASS', 'previewdescription Description',
+        'ATTRS', 'style="display:{{(item.preview && item.preview.description) ? \'block\' : \'none\'}}"',
+        'CONTENTS', '{{item.preview.description}}'
+      ),o(m.img,
+        'CLASS', 'previewimage Image',
+        'ATTRS', 'style="display:{{(item.preview && item.preview.image) ? \'block\' : \'none\'}}" src="{{item.preview.image}}"',
+        'CONTENTS', '{{item.preview.description}}'
+      )]
+    ),o(m.div,
+      'CLASS', 'chatmessagemetainfo',
+      'CONTENTS', [o(m.span,
+        'CLASS', messageeditedclass,
+        'ATTRS', 'style="display:{{lib.isArray(item.edits) ? \'inline\' : \'none\'}}"',
+        'CONTENTS', 'Edited'
+      ),o(m.span,
+        'CLASS', messageagoclass,
+        'CONTENTS', '{{item.created_humanreadable}}'
+      ),o(m.span,
+        'CLASS', messagercvdclass,
+        'ATTRS', 'style="display:{{(this.isMessageRcvd(item) && !this.isMessageSeen(item)) ? \'inline\' : \'none\'}}"',
+        'CONTENTS', ''
+      ),o(m.span,
+        'CLASS', messageseenclass,
+        'ATTRS', 'style="display:{{this.isMessageSeen(item) ? \'inline\' : \'none\'}}"',
+        'CONTENTS', ''
+      )]
     )];
     if (options && !options.skipSenderName){
       retContent.unshift(o(m.div,
@@ -41,42 +181,67 @@ function createChatMessageElement (lib, applib, templateslib, htmltemplateslib, 
       'CLASS', '{{item.from===null ? "'+mychatclass+'" : "'+otherschatclass+'"}}',
       'CONTENTS', retContent 
     );
-
+  };
+  ChatMessageElement.prototype.onContextMenu_edit = function () {
+    this.__parent.__parent.doEdit(this.get('data'));
+  };
+  ChatMessageElement.prototype.handleHeartbeat = function (timestamp) {
+    if (timestamp < this.dontupdatebefore) {
+      return;
+    }
+    this.updateHumanReadableCreated(null, timestamp);
+  };
+  ChatMessageElement.prototype.isMessageSeen = function (item) {
+    //console.log('isMessageSeen?', item);
+    if (!item) {
+      return false;
+    }
+    if (item.from !== null) {
+      return false;
+    }
+    return lib.isArray(item.seenby) ? item.seenby.some(seener) : item.seen;
+  };
+  ChatMessageElement.prototype.isMessageRcvd = function (item) {
+    //console.log('isMessageRcvd?', item);
+    if (!item) {
+      return false;
+    }
+    if (item.from !== null) {
+      return false;
+    }
+    return lib.isArray(item.rcvdby) ? item.rcvdby.some(rcvder) : item.rcvd;
+  };
+  function seener (item) {
+    return !!item.seen;
+  }
+  function rcvder (item) {
+    return !!item.rcvd;
+  }
+  ChatMessageElement.prototype.containedMessageSeenByMe = function () {
+    var d = this.get('data');
+    if (d.from === null) {
+      return true; //I sent this msg
+    }
+    if (d.seen) {
+      return true;
+    }
+    if (lib.isArray(d.seenby)) {
+      return d.seenby.some(hasmeseen);
+    }
+    return false;
+  };
+  function hasmeseen (seenbyitem) {
+    return (seenbyitem.u===null && lib.isNumber(seenbyitem.seen));
+  }
+  function hasmeunseen (seenbyitem) {
+    return (seenbyitem.u===null && seenbyitem.seen===null);
   }
 
-  function ChatMessageElement (id, options) {
-    options.data_markup = options.data_markup || createDataMarkup(options.data_markup_options);
-    DataAwareElement.call(this, id, options);
-  }
-  lib.inherit(ChatMessageElement, DataAwareElement);
-  ChatMessageElement.prototype.set_data = function (item) {
-    item.message = chatweblib.processMessage(item.message);
-    this.updateHumanReadableCreated(item);
-    return DataAwareElement.prototype.set_data.call(this, item);
-  };
-  ChatMessageElement.prototype.updateHumanReadableCreated = function (d) {
-    var d, had_d;
-    if (!this.destroyed) {
-      return;
-    }
-    had_d = arguments.length===1;
-    d = d || this.get('data');
-    if (!(d && d.created)) {
-      return;
-    }
-    if (!had_d) {
-      this.updateHashField('created_humanreadable', ago(d.created));
-      return;
-    }
-    d.created_humanreadable = ago(d.created);
-    lib.runNext(this.updateHumanReadableCreated.bind(this), nexttickinterval(d.created));
-  };
-
-  function ago (time) {
-    var now = Date.now(),
-      diff = now-time,
-      prefix = (diff>0) ? '' : 'in the future'
-      ;
+  function ago (time, now) {
+    var diff, prefix;
+    now = now || Date.now();
+    diff = now-time;
+    prefix = (diff>0) ? '' : 'in the future';
     if (diff<0) {
       diff *= -1;
     }
@@ -117,6 +282,44 @@ function createChatMessageElement (lib, applib, templateslib, htmltemplateslib, 
     return ret;
   }
 
+  function nextupdate (time, now) {
+    now = now || Date.now();
+    if (!lib.isNumber(time)) {
+      return now+lib.intervals.Second;
+    }
+    if (now - time < lib.intervals.Minute) {
+      return now+lib.intervals.Second;
+    }
+    if (now - time < lib.intervals.Hour) {
+      return now+lib.intervals.Minute;
+    }
+    return now+lib.intervals.Hour;
+  }
+
+  function updatercvdseen (data, propname, msg) {
+    var datapropname, prop, who, when;
+    datapropname = propname+'by';
+    who = msg[datapropname];
+    when = msg[propname+'at'];
+    prop = data[datapropname];
+    if (lib.isArray(prop)) {
+      prop.some(changer.bind(null, who, when, propname));
+      who = null;
+      when = null;
+      propname = null;
+      return;
+    }
+    if (who === '') { //other side's messages in p2p will not be updated dynamically
+      data[propname] = when;
+      return;
+    }
+  }
+
+  function changer (who, when, propname, item) {
+    if (item && item.u === who) {
+      item[propname] = when;
+    }
+  }
 
   applib.registerElementType('ChatMessage', ChatMessageElement);
 }
@@ -131,16 +334,20 @@ function createChatConversationBrief (lib, applib, templateslib, htmltemplatesli
     o = templateslib.override,
     p = templateslib.process,
     m = htmltemplateslib,
-    ChatConversationBriefMixin = chatweblib.mixins.ChatConversationBrief;
+    ChatConversationBriefMixin = chatweblib.mixins.ChatConversationBrief,
+    ChatActivityDisplayerMixin = chatweblib.mixins.ChatActivityDisplayer;
 
 
   function ChatConversationBriefElement (id, options) {
     DataAwareElement.call(this, id, options);
     ChatConversationBriefMixin.call(this);
+    ChatActivityDisplayerMixin.call(this);
   }
   lib.inherit(ChatConversationBriefElement, DataAwareElement);
   ChatConversationBriefMixin.addMethods(ChatConversationBriefElement);
+  ChatActivityDisplayerMixin.addMethods(ChatConversationBriefElement);
   ChatConversationBriefElement.prototype.__cleanUp = function () {
+    ChatActivityDisplayerMixin.prototype.destroy.call(this);
     ChatConversationBriefMixin.prototype.destroy.call(this);
     DataAwareElement.prototype.__cleanUp.call(this);
   };
@@ -156,27 +363,47 @@ function createChatConversationBrief (lib, applib, templateslib, htmltemplatesli
 module.exports = createChatConversationBrief;
 
 },{}],3:[function(require,module,exports){
-function createChatConversationHistory (lib, applib, templateslib, htmltemplateslib, utils) {
+function createChatConversationHistory (lib, applib, templateslib, htmltemplateslib, chatweblib, utils) {
   'use strict';
 
   var DataAwareElement = applib.getElementType('DataAwareElement'),
-    DataElementFollowerMixin = applib.mixins.DataElementFollowerMixin;
+    DataElementFollowerMixin = applib.mixins.DataElementFollowerMixin,
+    HeartbeatHandlerMixin = chatweblib.mixins.HeartbeatHandler;
 
   function ChatConversationHistoryElement (id, options) {
     DataAwareElement.call(this, id, options);
     DataElementFollowerMixin.call(this);
+    HeartbeatHandlerMixin.call(this);
     this.needMessages = this.createBufferableHookCollection();
     this.messageSeen = this.createBufferableHookCollection();
     this.conversationChanged = this.createBufferableHookCollection();
     this.send = new lib.HookCollection();
+    this.edit = new lib.HookCollection();
+    this.active = new lib.HookCollection();
+    this.childrenListeners = [];
     this.chatId = null;
+    this.p2p = null;
     this.oldestMessageId = null;
   }
   lib.inherit(ChatConversationHistoryElement, DataAwareElement);
   DataElementFollowerMixin.addMethods(ChatConversationHistoryElement);
+  HeartbeatHandlerMixin.addMethods(ChatConversationHistoryElement);
   ChatConversationHistoryElement.prototype.__cleanUp = function () {
     this.oldestMessageId = null;
     this.chatId = null;
+    this.p2p = null;
+    if (lib.isArray(this.childrenListeners)) {
+      lib.arryDestroyAll(this.childrenListeners);
+    }
+    this.childrenListeners = null;
+    if (this.active) {
+      this.active.destroy();
+    }
+    this.active = null;
+    if (this.edit) {
+      this.edit.destroy();
+    }
+    this.edit = null;
     if (this.send) {
       this.send.destroy();
     }
@@ -193,21 +420,35 @@ function createChatConversationHistory (lib, applib, templateslib, htmltemplates
       this.needMessages.destroy();
     }
     this.needMessages = null;
+    HeartbeatHandlerMixin.prototype.destroy.call(this);
     DataElementFollowerMixin.prototype.destroy.call(this);
     DataAwareElement.prototype.__cleanUp.call(this);
+  };
+  ChatConversationHistoryElement.prototype.initChatConversationHistory = function () {
+    var sendform;
+    try {
+      sendform = this.getElement('Send');
+    } catch (e) {
+      return;
+    }
+    this.childrenListeners.push(sendform.attachListener('submit', this.onSendSubmit.bind(this)));
+    this.childrenListeners.push(sendform.attachListener('active', this.onSendActive.bind(this)));
   };
   ChatConversationHistoryElement.prototype.onMasterDataChanged = function (data) {
     if (!lib.isVal(data)) {
       this.chatId = null;
+      this.p2p = null;
       this.set('data', null);
       this.conversationChanged.fire(null);
       return;
     }
     if (data.id !== this.chatId && data.chatId !== this.chatId) {
       this.chatId = data.chatId || data.id;
+      this.p2p = data.conv.p2p;
       this.conversationChanged.fire(this.chatId);
       this.askForMessages();
     }
+    console.log('history master data', data);
     this.set('data', data);
   };
   ChatConversationHistoryElement.prototype.askForMessages = function () {
@@ -218,29 +459,138 @@ function createChatConversationHistory (lib, applib, templateslib, htmltemplates
     this.__parent.detachActiveChat();
     this.set('data', null);
   };
+  ChatConversationHistoryElement.prototype.doEdit = function (msgdata) {
+    var modes, send;
+    msgdata.convid = this.chatId;
+    try {
+      modes = this.getElement('Modes');
+      modes.set('actualchildren', 'Edit');
+      modes.getElement('Edit').set('data', msgdata);
+      send = this.getElement('Send');
+      send.set('contents', msgdata.message);
+      send.focus();
+    } catch (ignore) {console.error(ignore);}
+  };
+  ChatConversationHistoryElement.prototype.onSendSubmit = function (msg) {
+    var modes;
+    try {
+      modes = this.getElement('Modes');
+      this.fireOutMessage(msg, modes.get('actualchildren'));
+      this.getElement('Send').resetForm();
+      modes.set('actualchildren', null);
+    } catch (ignore) {console.error(ignore);}
+  };
+  ChatConversationHistoryElement.prototype.fireOutMessage = function (msg, modes) {
+    var mydata = this.get('data');
+    if (lib.isString(modes)) {
+      this.fireOutMessageBasedOnMode(mydata, msg, modes);
+      return;
+    }
+    if (lib.isArray(modes)) {
+      modes.forEach(this.fireOutMessageBasedOnMode.bind(this, mydata, msg));
+      mydata = null;
+      msg = null;
+      return;
+    }
+    this.send.fire(lib.extend({}, msg, {
+      togroup: mydata.id,
+      to: mydata.resolve || '',
+      options: {
+        preview: true //this "true" needs further elaboration
+      }
+    }));
+  };
+  ChatConversationHistoryElement.prototype.fireOutMessageBasedOnMode = function (mydata, msg, mode) {
+    var editmodedata;
+    if ('Edit' === mode ) {
+      editmodedata = this.getElement('Modes').getElement('Edit').get('data');
+      this.edit.fire(lib.extend({}, msg, editmodedata, {
+        options: {
+          preview: true
+        }
+      }));
+    }
+  };
+  ChatConversationHistoryElement.prototype.onSendActive = function (ignore) {
+    if (!this.chatId) {
+      console.log('suppresing the active event because I have no chatId');
+      return;
+    }
+    this.active.fire({
+      convid: this.chatId
+    });
+  };
+  ChatConversationHistoryElement.prototype.handleUserActive = function (useractiveobj) {
+    //console.log(this.constructor.name, 'has yet to implement handleUserActive', useractiveobj);
+    if (useractiveobj && useractiveobj.conversationid !== this.chatId) {
+      return;
+    }
+    try {
+      this.getElement('Header').showChatUserActivity(useractiveobj);
+    } catch (e) {}
+  };
+  ChatConversationHistoryElement.prototype.handleHeartbeat = function (timestamp) {
+    try {
+      this.getElement('Messages').handleHeartbeat(timestamp);
+    } catch (ignore) {}
+  };
 
+  ChatConversationHistoryElement.prototype.postInitializationMethodNames = ChatConversationHistoryElement.prototype.postInitializationMethodNames.concat(['initChatConversationHistory']);
   applib.registerElementType('ChatConversationHistory', ChatConversationHistoryElement);
 }
 
 module.exports = createChatConversationHistory;
 
 },{}],4:[function(require,module,exports){
-function createChatConversationMessages (lib, applib, jquerylib, templateslib, htmltemplateslib, utils) {
+function createConversationHistoryHeaderElement (lib, applib, jquerylib, templateslib, htmltemplateslib, chatweblib, utils) {
+  'use strict';
+
+  var DataAwareChild = applib.getElementType('DataAwareChild'),
+    ChatActivityDisplayerMixin = chatweblib.mixins.ChatActivityDisplayer;
+
+  function ChatConversationHistoryHeaderElement (id, options) {
+    DataAwareChild.call(this, id, options);
+    ChatActivityDisplayerMixin.call(this);
+  }
+  lib.inherit(ChatConversationHistoryHeaderElement, DataAwareChild);
+  ChatActivityDisplayerMixin.addMethods(ChatConversationHistoryHeaderElement);
+  ChatConversationHistoryHeaderElement.prototype.__cleanUp = function () {
+    ChatActivityDisplayerMixin.prototype.destroy.call(this);
+    DataAwareChild.prototype.__cleanUp.call(this);
+  };
+
+  applib.registerElementType('ChatConversationHistoryHeaderElement', ChatConversationHistoryHeaderElement);
+}
+module.exports = createConversationHistoryHeaderElement;
+
+},{}],5:[function(require,module,exports){
+function createChatConversationMessages (lib, applib, jquerylib, templateslib, htmltemplateslib, chatweblib, utils) {
   'use strict';
 
   var FromDataCreator = applib.getElementType('FromDataCreator'),
-    ScrollableMixin = jquerylib.mixins.Scrollable;
+    ScrollableMixin = jquerylib.mixins.Scrollable,
+    HeartbeatHandlerMixin = chatweblib.mixins.HeartbeatHandler;
 
   function ChatConversationMessagesElement (id, options) {
     FromDataCreator.call(this, id, options);
     ScrollableMixin.call(this);
-    this.oldestId = null;
+    HeartbeatHandlerMixin.call(this);
     this.needOlder = this.createBufferableHookCollection();
     this.messageSeen = this.createBufferableHookCollection();
+    this.reportMessageSeen = new lib.DIContainer();
+    this.oldestId = null;
+    this.noOlder = null;
   }
   lib.inherit(ChatConversationMessagesElement, FromDataCreator);
   ScrollableMixin.addMethods(ChatConversationMessagesElement);
+  HeartbeatHandlerMixin.addMethods(ChatConversationMessagesElement);
   ChatConversationMessagesElement.prototype.__cleanUp = function () {
+    this.noOlder = null;
+    this.oldestId = null;
+    if (this.reportMessageSeen) {
+      this.reportMessageSeen.destroy();
+    }
+    this.reportMessageSeen = null;
     if (this.messageSeen) {
       this.messageSeen.destroy();
     }
@@ -249,7 +599,7 @@ function createChatConversationMessages (lib, applib, jquerylib, templateslib, h
       this.needOlder.destroy();
     }
     this.needOlder = null;
-    this.oldestId = null;
+    HeartbeatHandlerMixin.prototype.destroy.call(this);
     ScrollableMixin.prototype.destroy.call(this);
     FromDataCreator.prototype.__cleanUp.call(this);
   };
@@ -258,11 +608,20 @@ function createChatConversationMessages (lib, applib, jquerylib, templateslib, h
       ret;
     if (!datavalid) {
       this.oldestId = null;
+      this.noOlder = null;
     }
     ret = FromDataCreator.prototype.set_data.call(this, data);
     this.checkMessagesSeenability();
     return ret;
   };
+  /*
+  ChatConversationMessagesElement.prototype.prependData = function (messages) {
+    if (lib.isArray(messages) && messages.length>0) {
+      console.log('first message to prepend', messages[0]);
+    }
+    return FromDataCreator.prototype.prependData.call(this, messages);
+  };
+  */
   ChatConversationMessagesElement.prototype.createFromArryData = function (data) {
     var initsubelcount = lib.isArray(this.subElements) ? this.subElements.length : 0,
       finalsubelcount,
@@ -284,6 +643,9 @@ function createChatConversationMessages (lib, applib, jquerylib, templateslib, h
     return ret;
   };
   ChatConversationMessagesElement.prototype.createFromArryItem = function (item) {
+    if (item.oldest) {
+      this.noOlder = true;
+    }
     this.assignOldestId(item.id);
     return FromDataCreator.prototype.createFromArryItem.call(this, item);
   };
@@ -301,7 +663,9 @@ function createChatConversationMessages (lib, applib, jquerylib, templateslib, h
     ScrollableMixin.prototype.onElementScrolled.apply(this, arguments);
   };
   ChatConversationMessagesElement.prototype.onElementScrolledToTop = function () {
-    this.needOlder.fire(this.oldestId);
+    if (!this.noOlder) {
+      this.needOlder.fire(this.oldestId);
+    }
   };
 
   ChatConversationMessagesElement.prototype.checkMessagesSeenability = function () {
@@ -313,23 +677,57 @@ function createChatConversationMessages (lib, applib, jquerylib, templateslib, h
 
   ChatConversationMessagesElement.prototype.checkSingleMessageSeenability = function (chld) {
     var cd;
+    cd = chld.get('data');
     if (!(chld && chld.$element)) {
       return;
     }
-    //console.log('checkMessagesSeenability', chld.id, chld.get('data'));
-    cd = chld.get('data');
-    if (!cd) {
-      return;
-    }
-    if (cd.from === null) {
-      return;
-    }
-    if (cd.seen) {
+    if (chld.containedMessageSeenByMe()) {
       return;
     }
     if (this.elementIsWithinTheScrollableArea(chld.$element)) {
-      this.messageSeen.fire(cd.id);
+      this._doTheMessageSeenReporting(cd);
     }
+  };
+
+  ChatConversationMessagesElement.prototype._doTheMessageSeenReporting = function (msg) {
+    var mymsgseen = {
+      messageid: msg.id,
+      seenby: null,
+      seenat: Date.now()
+    },
+    mymsgrcvd = {
+      messageid: msg.id,
+      rcvdby: null,
+      rcvdat: Date.now()
+    };
+    this.doSeenMessage(mymsgseen);
+    this.doRcvdMessage(mymsgrcvd);
+    this.messageSeen.fire(msg.id);
+  };
+
+  ChatConversationMessagesElement.prototype.doRcvdMessage = function (rcvdm) {
+    this.findElementAndApply(rcvdm, 'messageid', 'updateFromRcvd');
+  };
+  ChatConversationMessagesElement.prototype.doSeenMessage = function (seenm) {
+    this.findElementAndApply(seenm, 'messageid', 'updateFromSeen');
+  };
+  ChatConversationMessagesElement.prototype.doEditMessage = function (editedm) {
+    this.findElementAndApply(editedm, 'id', 'updateFromEdit');
+  };
+  ChatConversationMessagesElement.prototype.findElementAndApply = function (msg, propname4find, methodname) {
+    var affectedwi = lib.arryOperations.findElementAndIndexWithProperty(this.subElements, 'id', 'chatmessage_'+msg[propname4find]);
+    if (!(affectedwi && affectedwi.element)) {
+      return;
+    }
+    affectedwi.element[methodname](msg);
+  };
+
+  ChatConversationMessagesElement.prototype.doPreviewMessage = function (preview) {
+    var affectedwi = lib.arryOperations.findElementAndIndexWithProperty(this.subElements, 'id', 'chatmessage_'+preview.id);
+    if (!(affectedwi && affectedwi.element)) {
+      return;
+    }
+    affectedwi.element.updatePreview(preview);
   };
 
   applib.registerElementType('ChatConversationMessages', ChatConversationMessagesElement);
@@ -337,7 +735,7 @@ function createChatConversationMessages (lib, applib, jquerylib, templateslib, h
 
 module.exports = createChatConversationMessages;
 
-},{}],5:[function(require,module,exports){
+},{}],6:[function(require,module,exports){
 function createChatConversationsElement (lib, applib, templateslib, htmltemplateslib, utils) {
   'use strict';
 
@@ -354,6 +752,18 @@ function createChatConversationsElement (lib, applib, templateslib, htmltemplate
       this.chld.destroy();
     }
     this.chld = null;
+  };
+  ChldWithListener.prototype.get = function (propname) {
+    if (!this.chld) {
+      return null;
+    }
+    return this.chld.get(propname);
+  };
+  ChldWithListener.prototype.set = function (propname, val) {
+    if (!this.chld) {
+      return false;
+    }
+    return this.chld.set(propname, val);
   };
 
   var FromDataCreator = applib.getElementType('FromDataCreator');
@@ -390,28 +800,44 @@ function createChatConversationsElement (lib, applib, templateslib, htmltemplate
   ChatConversationsElement.prototype.forgetSelected = function () {
     this.selectedItemId = null;
   };
-
+  ChatConversationsElement.prototype.handleUserActive = function (useractiveobj) {
+    this.traverseSubElementsWithFilter({
+      op: 'eq',
+      field: 'id',
+      value: useractiveobj.conversationid
+    }, useractiver.bind(null, useractiveobj));
+    useractiveobj = null;
+  };
+  function useractiver (useractiveobj, chld, isok) {
+    if (!isok) {
+      return;
+    }
+    chld.chld.showChatUserActivity(useractiveobj);
+  }
 
   applib.registerElementType('ChatConversationsElement', ChatConversationsElement);
 }
 
 module.exports = createChatConversationsElement;
 
-},{}],6:[function(require,module,exports){
-function createElements (lib, applib, jquerylib, templateslib, htmltemplateslib, chatweblib, utils) {
+},{}],7:[function(require,module,exports){
+function createElements (lib, applib, jquerylib, templateslib, htmltemplateslib, chatweblib, messageparsinglib, jquerycontextmenulib, bufftriglib, utils) {
   'use strict';
 
   require('./interfacecreator')(lib, applib, templateslib, htmltemplateslib, chatweblib, utils);
-  require('./chatmessagecreator')(lib, applib, templateslib, htmltemplateslib, chatweblib, utils);
+  require('./chatmessagecreator')(lib, applib, templateslib, htmltemplateslib, chatweblib, messageparsinglib, jquerycontextmenulib, utils);
   require('./conversationbriefcreator')(lib, applib, templateslib, htmltemplateslib, chatweblib, utils);
   require('./conversationscreator')(lib, applib, templateslib, htmltemplateslib, utils);
-  require('./conversationhistorycreator')(lib, applib, templateslib, htmltemplateslib, utils);
-  require('./conversationmessagescreator')(lib, applib, jquerylib, templateslib, htmltemplateslib, utils);
+  require('./conversationhistorycreator')(lib, applib, templateslib, htmltemplateslib, chatweblib, utils);
+  require('./conversationhistoryheadercreator')(lib, applib, jquerylib, templateslib, htmltemplateslib, chatweblib, utils);
+  require('./conversationmessagescreator')(lib, applib, jquerylib, templateslib, htmltemplateslib, chatweblib, utils);
+  require('./modescreator')(lib, applib, jquerylib, templateslib, htmltemplateslib, utils);
+  require('./sendformcreator')(lib, applib, jquerylib, templateslib, htmltemplateslib, bufftriglib, utils);
 }
 
 module.exports = createElements;
 
-},{"./chatmessagecreator":1,"./conversationbriefcreator":2,"./conversationhistorycreator":3,"./conversationmessagescreator":4,"./conversationscreator":5,"./interfacecreator":7}],7:[function(require,module,exports){
+},{"./chatmessagecreator":1,"./conversationbriefcreator":2,"./conversationhistorycreator":3,"./conversationhistoryheadercreator":4,"./conversationmessagescreator":5,"./conversationscreator":6,"./interfacecreator":8,"./modescreator":9,"./sendformcreator":10}],8:[function(require,module,exports){
 function createChatInterface (lib, applib, templateslib, htmltemplateslib, chatweblib, utils) {
   'use strict';
 
@@ -435,24 +861,232 @@ function createChatInterface (lib, applib, templateslib, htmltemplateslib, chatw
 }
 module.exports = createChatInterface;
 
-},{}],8:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
+function createModes (lib, applib, jquerylib, templateslib, htmltemplateslib, utils) {
+  'use strict';
+
+  var WebElement = applib.getElementType('WebElement'),
+    ChildActualizerMixin = applib.mixins.ChildActualizer,
+    o = templateslib.override,
+    m = htmltemplateslib;
+
+  function createDefaultMarkup (options) {
+    return o(m.div,
+      'CLASS', 'hers-modes',
+      'CONTENTS', [
+        o(m.div,
+          'CLASS', 'Link hers-modes-link',
+          'CONTENTS', [
+            o(m.div,
+              'CLASS', 'Contents hers-modes-link-contents'
+            ),
+            o(m.div,
+              'CLASS', 'Cancel hers-modes-cancel',
+              'CONTENTS', o(m.span,
+                'CLASS', 'icon-preferences'
+              )
+            )
+          ]
+        ),
+        o(m.div,
+          'CLASS', 'Edit hers-modes-edit',
+          'CONTENTS', [
+            o(m.div,
+              'CLASS', 'hers-modes-edit-container',
+              'CONTENTS', [
+                o(m.span,
+                  'CLASS', 'hers-modes-edit-label',
+                  'CONTENTS' ,'Edit message'
+                ),
+                o(m.span,
+                  'CLASS', 'Contents hers-modes-edit-contents'
+                )
+              ]
+            ),
+            o(m.div,
+              'CLASS', 'Cancel hers-modes-cancel',
+              'CONTENTS', o(m.span,
+                'CLASS', 'icon-preferences'
+              )
+            )
+          ]
+        )
+      ]
+    );
+  }
+
+  function ChatModeElement (id, options) {
+    options.elements = options.elements || [];
+    options.elements.push({
+      name: 'Cancel',
+      type: 'ClickableElement',
+      options: {
+        actual: true,
+        self_selector: '.',
+        ignore_enabled: true
+      }
+    });
+    WebElement.call(this, id, options);
+    this.data = null;
+  }
+  lib.inherit(ChatModeElement, WebElement);
+  ChatModeElement.prototype.__cleanUp = function () {
+    this.data = null;
+    WebElement.prototype.__cleanUp.call(this);
+  };
+  ChatModeElement.prototype.set_data = function (val) {
+    this.data = val;
+  };
+
+  applib.registerElementType('ChatModeElement', ChatModeElement);
+
+  function ChatModeWithContentsElement (id, options) {
+    ChatModeElement.call(this, id, options);
+  }
+  lib.inherit(ChatModeWithContentsElement, ChatModeElement);
+  ChatModeWithContentsElement.prototype.__cleanUp = function () {
+    ChatModeElement.prototype.__cleanUp.call(this);
+  };
+  ChatModeWithContentsElement.prototype.set_contents = function (val) {
+    //simple - for now
+    if (!this.$element) {
+      return;
+    }
+    this.$element.find('.Contents').text(val);
+  };
+  ChatModeWithContentsElement.prototype.get_contents = function () {
+    if (!this.$element) {
+      return;
+    }
+    return this.$element.find('.Contents').text();
+  };
+
+  applib.registerElementType('ChatModeWithContentsElement', ChatModeWithContentsElement);
+
+  function ChatEditModeElement (id, options) {
+    ChatModeWithContentsElement.call(this, id, options);
+  };
+  lib.inherit(ChatEditModeElement, ChatModeWithContentsElement);
+  ChatEditModeElement.prototype.set_data = function (val) {
+    ChatModeWithContentsElement.prototype.set_data.call(this, val);
+    this.set('contents', val.message);
+  };
+
+  applib.registerElementType('ChatEditModeElement', ChatEditModeElement);
+
+  function ChatModesElement (id, options) {
+    options.default_markup = options.default_markup || createDefaultMarkup (options.defaultmarkupoptions);
+    options.elements = [{
+      name: 'Link',
+      type: 'ChatModeWithContentsElement',
+      options: {
+        self_selector: '.'
+      }
+    },{
+      name: 'Edit',
+      type: 'ChatEditModeElement',
+      options: {
+        self_selector: '.'
+      }
+    }]
+    WebElement.call(this, id, options);
+    ChildActualizerMixin.call(this);
+  }
+  lib.inherit(ChatModesElement, WebElement);
+  ChildActualizerMixin.addMethods(ChatModesElement);
+  ChatModesElement.prototype.__cleanUp = function () {
+    ChildActualizerMixin.prototype.destroy.call(this);
+    WebElement.prototype.__cleanUp.call(this);
+  };
+
+  applib.registerElementType('ChatModesElement', ChatModesElement);
+}
+module.exports = createModes;
+
+
+},{}],10:[function(require,module,exports){
+function createSendForm (lib, applib, jquerylib, templateslib, htmltemplateslib, bufftriglib, utils) {
+  'use strict';
+
+  var FormLogic = applib.getElementType('FormLogic'),
+    BufferedTrigger = bufftriglib.BufferedTrigger;
+
+  function SendChatMessageFormLogic (id, options) {
+    FormLogic.call(this, id, options);
+    this.trigger = new BufferedTrigger(this.fireActive.bind(this), options.input_timeout||5000);
+    this.active = this.createBufferableHookCollection();
+  }
+  lib.inherit(SendChatMessageFormLogic, FormLogic);
+  SendChatMessageFormLogic.prototype.resetForm = function () {
+    if (this.active) {
+      this.active.destroy();
+    }
+    this.active = null;
+    if (this.trigger) {
+      this.$element.find('[name="message_text"]').off('keyup', this.trigger.triggerer);
+      this.trigger.destroy();
+    }
+    this.trigger = null;
+    FormLogic.prototype.resetForm.call(this);
+  };
+  SendChatMessageFormLogic.prototype.set_contents = function (val) {
+    if (!this.$element) {
+      return null;
+    }
+    this.$element.find('[name="message_text"]').val(val);
+    return true;
+  };
+  SendChatMessageFormLogic.prototype.get_contents = function () {
+    if (!this.$element) {
+      return null;
+    }
+    return this.$element.find('[name="message_text"]').val();
+  };
+  SendChatMessageFormLogic.prototype.focus = function () {
+    if (!this.$element) {
+      return;
+    }
+    this.$element.find('[name="message_text"]').focus();
+  };
+  SendChatMessageFormLogic.prototype.initSendChatMessageFormLogic = function () {
+    if (this.trigger) {
+      this.$element.find('[name="message_text"]').on('keyup', this.trigger.triggerer);
+    }
+  };
+  SendChatMessageFormLogic.prototype.fireActive = function () {
+    console.log('typing!');
+    if (this.active) {
+      this.active.fire(true);
+    }
+  };
+
+  SendChatMessageFormLogic.prototype.postInitializationMethodNames = SendChatMessageFormLogic.prototype.postInitializationMethodNames.concat(['initSendChatMessageFormLogic']);
+
+  applib.registerElementType('SendChatMessageFormLogic', SendChatMessageFormLogic);
+}
+module.exports = createSendForm;
+
+},{}],11:[function(require,module,exports){
 (function createChatWebComponent (execlib) {
 
   var lib = execlib.lib,
     lR = execlib.execSuite.libRegistry,
     applib = lR.get('allex_applib'),
     jquerylib = lR.get('allex_jqueryelementslib'),
+    jquerycontextmenulib = lR.get('allex_jquerycontextmenuweblib'),
     templateslib = lR.get('allex_templateslitelib'),
     htmltemplateslib = lR.get('allex_htmltemplateslib'),
     chatweblib = lR.get('social_chatweblib'),
+    messageparsinglib = lR.get('social_messageparsinglib'),
+    bufftriglib = lR.get('allex_bufferedtriggerlib'),
     utils = require('./utils')(lib);
 
-  require('./elements')(lib, applib, jquerylib, templateslib, htmltemplateslib, chatweblib, utils);
+  require('./elements')(lib, applib, jquerylib, templateslib, htmltemplateslib, chatweblib, messageparsinglib, jquerycontextmenulib, bufftriglib, utils);
   require('./modifiers')(lib, applib, templateslib, htmltemplateslib, utils);
   require('./prepreprocessors')(lib, applib);
 })(ALLEX);
 
-},{"./elements":6,"./modifiers":11,"./prepreprocessors":12,"./utils":14}],9:[function(require,module,exports){
+},{"./elements":7,"./modifiers":14,"./prepreprocessors":15,"./utils":17}],12:[function(require,module,exports){
 function createChatWidget (lib, applib, templateslib, htmltemplateslib, utils) {
   'use strict';
 
@@ -485,7 +1119,7 @@ function createChatWidget (lib, applib, templateslib, htmltemplateslib, utils) {
     if (!config.class){
       config.class = {};
     }
-    return o(m.form,
+    var ret = o(m.form,
       'CLASS', (config.class.form || ''),
       'CONTENTS', [
         /*
@@ -504,7 +1138,8 @@ function createChatWidget (lib, applib, templateslib, htmltemplateslib, utils) {
           'CONTENTS', 'Send'
         )
       ]
-    )
+    );
+    return ret;
   }
 
   function ChatWidgetModifier (options) {
@@ -529,21 +1164,6 @@ function createChatWidget (lib, applib, templateslib, htmltemplateslib, utils) {
       name: widgetname,
       type: config.types.interface || 'ChatInterface',
       options: this.widgetOptions(config.widget, config.types, config.names),
-      /*
-      logic: [{
-        triggers: '.Messages:actual',
-        references: '.',
-        handler: function(ign, actual){
-          if (!!actual){
-            console.log('Pokazao se friend unreadMessages, ovde ce da se zove markRead');
-          }
-        }
-      }],
-      links: [{
-        source: 'SendMessageForm!submit',
-        target: '.!messageToSend'
-      }]
-      */
       logic: [{
         triggers: '.:lastnotification',
         references: '.,.'+historyname+'.Messages',
@@ -552,11 +1172,35 @@ function createChatWidget (lib, applib, templateslib, htmltemplateslib, utils) {
           if (!(me && me.activechat && (me.activechat.id === ln.id || me.activechat.chatId === ln.id))) {
             return;
           }
-          //console.log('lastnotification ok');
           if (ln && ln.conv) {
-            msgs.appendData([ln.conv.lastm]);
+            if (ln.conv.rcvdm) {
+              msgs.doRcvdMessage(ln.conv.rcvdm);
+              return;
+            }
+            if (ln.conv.seenm) {
+              msgs.doSeenMessage(ln.conv.seenm);
+              return;
+            }
+            if (ln.conv.editedm) {
+              msgs.doEditMessage(ln.conv.editedm);
+              return;
+            }
+            if (ln.conv.preview) {
+              msgs.doPreviewMessage(ln.conv.preview);
+              return;
+            }
+            if (ln.conv.lastm) {
+              msgs.appendData([ln.conv.lastm]);
+            }
           }
-          //return (ln && ln.conv) ? [ln.conv.lastm] : null;
+        }
+      },{
+        triggers: '.!userActive',
+        references: '.'+chatsname+',.'+historyname,
+        handler: function (chats, hist, evnt) {
+          console.log('distributing userActive', evnt);
+          chats.handleUserActive(evnt);
+          hist.handleUserActive(evnt);
         }
       }],
       links: [{
@@ -565,10 +1209,8 @@ function createChatWidget (lib, applib, templateslib, htmltemplateslib, utils) {
         //filter: utils.distinctSenders
       },{
         source: '.'+chatsname+'!selected',
-        target: '.:activechat',
-        filter: function passthru (thingy) {
-          return thingy;
-        }
+        target: '.>handleSelectedChat'
+        //target: '.:activechat'
       },{
         source: '.!forgetSelected',
         target: '.'+chatsname+'>forgetSelected'
@@ -595,16 +1237,16 @@ function createChatWidget (lib, applib, templateslib, htmltemplateslib, utils) {
         target: '.!needMessages'
       },{
         source: '.'+historyname+'!send',
-        target: '.!messageToSend',
-        filter: function (tosend) {
-          /*
-          __SENTMESSAGECOUNT++;
-          if (__SENTMESSAGECOUNT>1) {
-            throw new Error('Moze samo jedna poruka da se salje');
-          }
-          */
-          return tosend;
-        }
+        target: '.!messageToSend'
+      },{
+        source: '.'+historyname+'!edit',
+        target: '.!messageToEdit'
+      },{
+        source: '.'+historyname+'!active',
+        target: '.!active'
+      },{
+        source: '.!heartbeat',
+        target: '.'+historyname+'>handleHeartbeat'
       }]
     });
   };
@@ -741,7 +1383,7 @@ function createChatWidget (lib, applib, templateslib, htmltemplateslib, utils) {
           ),
           elements: [{
             name: 'Header',
-            type: types.historyheader || 'DataAwareChild',
+            type: types.historyheader || 'ChatConversationHistoryHeaderElement',
             options: lib.extend({
               actual: true,
               self_selector: '.',
@@ -772,6 +1414,12 @@ function createChatWidget (lib, applib, templateslib, htmltemplateslib, utils) {
                     default_markup: o(m.div,
                       'CLASS', params.ChatMessageClass || 'ChatMessage'
                     ),
+                    contextmenu: {
+                      selector: '.mychat',
+                      items: {
+                        edit: {name: 'Edit', icon: 'edit'}
+                      }
+                    },
                     data_markup_options: params.messages,
                     data: item
                   }
@@ -788,24 +1436,25 @@ function createChatWidget (lib, applib, templateslib, htmltemplateslib, utils) {
               }]
             }, params.messages)
           },{
+            name: 'Modes',
+            type: 'ChatModesElement',
+            options: {
+              actual: true,
+              self_selector: 'attrib:chatelement'
+            }
+          },{
             name: 'Send',
-            type: 'AngularFormLogic',
+            type: 'SendChatMessageFormLogic',
             options: {
               actual: true,
               self_selector: 'attrib:chatelement',
-              default_markup: createSendMessageForm(params.sendmessageform)
-            }/*,
-            this modifier will double the clicks because
-              the button will fire 'submit' on the form
-              the modifier will run 'submitForm' on the AngularFormLogic
-            modifiers: [{
-              name: 'AngularFormLogic.submit',
-              options: {
-                options: {
-                  self_selector: '.'
+              default_markup: createSendMessageForm(params.sendmessageform),
+              validation: {
+                message_text: {
+                  regex: '[\\w,\\W]+'
                 }
               }
-            }]*/
+            }
           }]
         }, params.history),
         links: [{
@@ -822,7 +1471,7 @@ function createChatWidget (lib, applib, templateslib, htmltemplateslib, utils) {
             me.oldestMessageId = noevnt;
             me.askForMessages();
           }
-        },{
+        }/* obsolete naive logic, now ChatConversationHistoryElement deals with this ,{
           triggers: '.Send!submit',
           references: '.,.Send',
           handler: function (me, form, submitted) {
@@ -833,7 +1482,7 @@ function createChatWidget (lib, applib, templateslib, htmltemplateslib, utils) {
             }));
             form.resetForm();
           }
-        }]
+        }*/]
       }]
     };
   };
@@ -846,11 +1495,36 @@ function createChatWidget (lib, applib, templateslib, htmltemplateslib, utils) {
 
 module.exports = createChatWidget;
 
-},{}],10:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 function createChatWidgetIntegrator (lib, applib) {
   'use strict';
 
   var BasicModifier = applib.BasicModifier;
+
+  function plainUserNameForIder () {
+  }
+
+  function doTheNeedGroupCandidates (pp, chatinterfacename, logic, cgh) {
+    //var cgh = this.config.chatgrouphandling,
+    var pathtochatgroupcreator = cgh.needgroupcandidates.chatgroupcreatorpath || 'Chats.ChatGroupCreator',
+      groupcandidatesproducer = cgh.needgroupcandidates.producer;
+    //TODO: check for all the needed sub-fields of cgh
+    //like lib.isFunction(groupcandidatesproducer)
+    logic.push({
+      triggers: pp+'.'+chatinterfacename+'!needGroupCandidates',
+      references: pp+'.'+chatinterfacename+'.'+pathtochatgroupcreator+','+cgh.needgroupcandidates.references,
+      handler: function () {
+        var args = Array.prototype.slice.call(arguments),
+          chatgroupcreatorel = args[0],
+          data;
+        //evnt = args[args.length-1];
+        data = groupcandidatesproducer.apply(null, args.slice(1,-1));
+        data = lib.isArray(data) ? data.slice() : null;
+        chatgroupcreatorel.set('data', data);
+        chatgroupcreatorel.set('actual', !!data);
+      }
+    });
+  }
 
   function ChatWidgetIntegratorModifier (options) {
     if (!('chatwidgetparentpath' in options)) {
@@ -888,7 +1562,6 @@ function createChatWidgetIntegrator (lib, applib) {
         if (icc.running) {
           return;
         }
-        console.log('got Initiations ', icc.result);
         itf.set('data', icc.result);
       }
     },{
@@ -913,8 +1586,21 @@ function createChatWidgetIntegrator (lib, applib) {
       triggers: pp+'.'+chatinterfacename+'!messageToSend',
       references: '.>sendChatMessage'+rlm,
       handler: function(sendChatMessage, evnt){
-        console.log(evnt);
-        sendChatMessage([evnt.togroup, evnt.to, evnt.message_text]);
+        sendChatMessage([evnt.togroup, evnt.to, evnt.message_text, evnt.options]);
+      }
+    },{
+      triggers: pp+'.'+chatinterfacename+'!messageToEdit',
+      references: '.>editChatMessage'+rlm,
+      handler: function(editChatMessage, evnt){
+        console.log('editChatMessage', evnt);
+        editChatMessage([evnt.convid, evnt.id, evnt.message_text, evnt.options]);
+      }
+    },{
+      triggers: pp+'.'+chatinterfacename+'!active',
+      references: '.>reportChatActivity'+rlm,
+      handler: function(reportChatActivity, evnt){
+        console.log('reportChatActivity', evnt);
+        reportChatActivity([evnt.convid]);
       }
     },{
       triggers: pp+'.'+chatinterfacename+'!messageSeen',
@@ -934,29 +1620,36 @@ function createChatWidgetIntegrator (lib, applib) {
         }
         itf.set('chatmessages', gcm.result);
       }
+    },{
+      triggers: pp+'.'+chatinterfacename+'!needUserNameForId',
+      references: pp+'.'+chatinterfacename,
+      handler: function (itf, queryobj) {
+        queryobj.username = queryobj.userid;
+        itf.userNameForId(queryobj);
+      }
     });
+    //handle the needUserNameForId
+    /*
+    logic.push({
+    });
+    */
     //handle the needGroupCandidates
     if (this.config.chatgrouphandling) {
-      var cgh = this.config.chatgrouphandling,
-        pathtochatgroupcreator = cgh.needgroupcandidates.chatgroupcreatorpath || 'Chats.ChatGroupCreator',
-        groupcandidatesproducer = cgh.needgroupcandidates.producer;
-      //TODO: check for all the needed sub-fields of cgh
-      //like lib.isFunction(groupcandidatesproducer)
+      doTheNeedGroupCandidates(pp, chatinterfacename, logic, this.config.chatgrouphandling);
+    }
+    //endof needGroupCandidates
+    //handle createNewChatGroupWithMembers
+    if (this.config.createnewchatgroupwithmemberstrigger) {
       logic.push({
-        triggers: pp+'.'+chatinterfacename+'!needGroupCandidates',
-        references: pp+'.'+chatinterfacename+'.'+pathtochatgroupcreator+','+cgh.needgroupcandidates.references,
-        handler: function () {
-          var args = Array.prototype.slice.call(arguments),
-            chatgroupcreatorel = args[0],
-            data;
-          //evnt = args[args.length-1];
-          data = groupcandidatesproducer.apply(null, args.slice(1,-1));
-          data = lib.isArray(data) ? data.slice() : null;
-          chatgroupcreatorel.set('data', data);
-          chatgroupcreatorel.set('actual', !!data);
+        triggers: this.config.createnewchatgroupwithmemberstrigger,
+        references: '.>createNewChatGroupWithMembers'+rlm,
+        handler: function (cncgwmfunc, evnt) {
+          console.log(evnt);
+          cncgwmfunc([evnt.name, evnt.members]);
         }
       });
     }
+    //endof handle createNewChatGroupWithMembers
     if (!this.config.skipconversationloading) {
       logic.push({
         triggers: pp+':actual,'+pp+'.'+chatinterfacename+':initialized',
@@ -992,7 +1685,7 @@ function createChatWidgetIntegrator (lib, applib) {
 module.exports = createChatWidgetIntegrator;
 
 
-},{}],11:[function(require,module,exports){
+},{}],14:[function(require,module,exports){
 function createModifiers (lib, applib, templateslib, htmltemplateslib, utils) {
   'use strict';
 
@@ -1002,7 +1695,7 @@ function createModifiers (lib, applib, templateslib, htmltemplateslib, utils) {
 
 module.exports = createModifiers;
 
-},{"./chatwidgetcreator":9,"./chatwidgetintegratorcreator":10}],12:[function(require,module,exports){
+},{"./chatwidgetcreator":12,"./chatwidgetintegratorcreator":13}],15:[function(require,module,exports){
 function createPrePreprocessors (lib, applib) {
   'use strict';
 
@@ -1010,7 +1703,7 @@ function createPrePreprocessors (lib, applib) {
 }
 module.exports = createPrePreprocessors;
 
-},{"./initcreator":13}],13:[function(require,module,exports){
+},{"./initcreator":16}],16:[function(require,module,exports){
 function createInitChatPrePreprocessor (lib, applib) {
   'use strict';
 
@@ -1060,7 +1753,10 @@ function createInitChatPrePreprocessor (lib, applib) {
       'getChatConversations',
       'sendChatMessage',
       'markMessageRcvd',
-      'markMessageSeen'
+      'markMessageSeen',
+      'editChatMessage',
+      'reportChatActivity',
+      'createNewChatGroupWithMembers'
     ].map(commander.bind(null, env, rlm)));
     desc.preprocessors.DataSource.push.apply(desc.preprocessors.DataSource, [
       'chatnotification',
@@ -1077,7 +1773,7 @@ function createInitChatPrePreprocessor (lib, applib) {
 }
 module.exports = createInitChatPrePreprocessor;
 
-},{}],14:[function(require,module,exports){
+},{}],17:[function(require,module,exports){
 function createUtils (lib) {
   'use strict';
 
@@ -1146,4 +1842,4 @@ function createUtils (lib) {
 
 module.exports = createUtils;
 
-},{}]},{},[8]);
+},{}]},{},[11]);

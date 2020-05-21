@@ -30,7 +30,7 @@ function createChatWidget (lib, applib, templateslib, htmltemplateslib, utils) {
     if (!config.class){
       config.class = {};
     }
-    return o(m.form,
+    var ret = o(m.form,
       'CLASS', (config.class.form || ''),
       'CONTENTS', [
         /*
@@ -49,7 +49,8 @@ function createChatWidget (lib, applib, templateslib, htmltemplateslib, utils) {
           'CONTENTS', 'Send'
         )
       ]
-    )
+    );
+    return ret;
   }
 
   function ChatWidgetModifier (options) {
@@ -74,21 +75,6 @@ function createChatWidget (lib, applib, templateslib, htmltemplateslib, utils) {
       name: widgetname,
       type: config.types.interface || 'ChatInterface',
       options: this.widgetOptions(config.widget, config.types, config.names),
-      /*
-      logic: [{
-        triggers: '.Messages:actual',
-        references: '.',
-        handler: function(ign, actual){
-          if (!!actual){
-            console.log('Pokazao se friend unreadMessages, ovde ce da se zove markRead');
-          }
-        }
-      }],
-      links: [{
-        source: 'SendMessageForm!submit',
-        target: '.!messageToSend'
-      }]
-      */
       logic: [{
         triggers: '.:lastnotification',
         references: '.,.'+historyname+'.Messages',
@@ -97,11 +83,35 @@ function createChatWidget (lib, applib, templateslib, htmltemplateslib, utils) {
           if (!(me && me.activechat && (me.activechat.id === ln.id || me.activechat.chatId === ln.id))) {
             return;
           }
-          //console.log('lastnotification ok');
           if (ln && ln.conv) {
-            msgs.appendData([ln.conv.lastm]);
+            if (ln.conv.rcvdm) {
+              msgs.doRcvdMessage(ln.conv.rcvdm);
+              return;
+            }
+            if (ln.conv.seenm) {
+              msgs.doSeenMessage(ln.conv.seenm);
+              return;
+            }
+            if (ln.conv.editedm) {
+              msgs.doEditMessage(ln.conv.editedm);
+              return;
+            }
+            if (ln.conv.preview) {
+              msgs.doPreviewMessage(ln.conv.preview);
+              return;
+            }
+            if (ln.conv.lastm) {
+              msgs.appendData([ln.conv.lastm]);
+            }
           }
-          //return (ln && ln.conv) ? [ln.conv.lastm] : null;
+        }
+      },{
+        triggers: '.!userActive',
+        references: '.'+chatsname+',.'+historyname,
+        handler: function (chats, hist, evnt) {
+          console.log('distributing userActive', evnt);
+          chats.handleUserActive(evnt);
+          hist.handleUserActive(evnt);
         }
       }],
       links: [{
@@ -110,10 +120,8 @@ function createChatWidget (lib, applib, templateslib, htmltemplateslib, utils) {
         //filter: utils.distinctSenders
       },{
         source: '.'+chatsname+'!selected',
-        target: '.:activechat',
-        filter: function passthru (thingy) {
-          return thingy;
-        }
+        target: '.>handleSelectedChat'
+        //target: '.:activechat'
       },{
         source: '.!forgetSelected',
         target: '.'+chatsname+'>forgetSelected'
@@ -140,16 +148,16 @@ function createChatWidget (lib, applib, templateslib, htmltemplateslib, utils) {
         target: '.!needMessages'
       },{
         source: '.'+historyname+'!send',
-        target: '.!messageToSend',
-        filter: function (tosend) {
-          /*
-          __SENTMESSAGECOUNT++;
-          if (__SENTMESSAGECOUNT>1) {
-            throw new Error('Moze samo jedna poruka da se salje');
-          }
-          */
-          return tosend;
-        }
+        target: '.!messageToSend'
+      },{
+        source: '.'+historyname+'!edit',
+        target: '.!messageToEdit'
+      },{
+        source: '.'+historyname+'!active',
+        target: '.!active'
+      },{
+        source: '.!heartbeat',
+        target: '.'+historyname+'>handleHeartbeat'
       }]
     });
   };
@@ -286,7 +294,7 @@ function createChatWidget (lib, applib, templateslib, htmltemplateslib, utils) {
           ),
           elements: [{
             name: 'Header',
-            type: types.historyheader || 'DataAwareChild',
+            type: types.historyheader || 'ChatConversationHistoryHeaderElement',
             options: lib.extend({
               actual: true,
               self_selector: '.',
@@ -317,6 +325,12 @@ function createChatWidget (lib, applib, templateslib, htmltemplateslib, utils) {
                     default_markup: o(m.div,
                       'CLASS', params.ChatMessageClass || 'ChatMessage'
                     ),
+                    contextmenu: {
+                      selector: '.mychat',
+                      items: {
+                        edit: {name: 'Edit', icon: 'edit'}
+                      }
+                    },
                     data_markup_options: params.messages,
                     data: item
                   }
@@ -333,24 +347,25 @@ function createChatWidget (lib, applib, templateslib, htmltemplateslib, utils) {
               }]
             }, params.messages)
           },{
+            name: 'Modes',
+            type: 'ChatModesElement',
+            options: {
+              actual: true,
+              self_selector: 'attrib:chatelement'
+            }
+          },{
             name: 'Send',
-            type: 'AngularFormLogic',
+            type: 'SendChatMessageFormLogic',
             options: {
               actual: true,
               self_selector: 'attrib:chatelement',
-              default_markup: createSendMessageForm(params.sendmessageform)
-            }/*,
-            this modifier will double the clicks because
-              the button will fire 'submit' on the form
-              the modifier will run 'submitForm' on the AngularFormLogic
-            modifiers: [{
-              name: 'AngularFormLogic.submit',
-              options: {
-                options: {
-                  self_selector: '.'
+              default_markup: createSendMessageForm(params.sendmessageform),
+              validation: {
+                message_text: {
+                  regex: '[\\w,\\W]+'
                 }
               }
-            }]*/
+            }
           }]
         }, params.history),
         links: [{
@@ -367,7 +382,7 @@ function createChatWidget (lib, applib, templateslib, htmltemplateslib, utils) {
             me.oldestMessageId = noevnt;
             me.askForMessages();
           }
-        },{
+        }/* obsolete naive logic, now ChatConversationHistoryElement deals with this ,{
           triggers: '.Send!submit',
           references: '.,.Send',
           handler: function (me, form, submitted) {
@@ -378,7 +393,7 @@ function createChatWidget (lib, applib, templateslib, htmltemplateslib, utils) {
             }));
             form.resetForm();
           }
-        }]
+        }*/]
       }]
     };
   };

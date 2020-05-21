@@ -1,19 +1,30 @@
-function createChatConversationMessages (lib, applib, jquerylib, templateslib, htmltemplateslib, utils) {
+function createChatConversationMessages (lib, applib, jquerylib, templateslib, htmltemplateslib, chatweblib, utils) {
   'use strict';
 
   var FromDataCreator = applib.getElementType('FromDataCreator'),
-    ScrollableMixin = jquerylib.mixins.Scrollable;
+    ScrollableMixin = jquerylib.mixins.Scrollable,
+    HeartbeatHandlerMixin = chatweblib.mixins.HeartbeatHandler;
 
   function ChatConversationMessagesElement (id, options) {
     FromDataCreator.call(this, id, options);
     ScrollableMixin.call(this);
-    this.oldestId = null;
+    HeartbeatHandlerMixin.call(this);
     this.needOlder = this.createBufferableHookCollection();
     this.messageSeen = this.createBufferableHookCollection();
+    this.reportMessageSeen = new lib.DIContainer();
+    this.oldestId = null;
+    this.noOlder = null;
   }
   lib.inherit(ChatConversationMessagesElement, FromDataCreator);
   ScrollableMixin.addMethods(ChatConversationMessagesElement);
+  HeartbeatHandlerMixin.addMethods(ChatConversationMessagesElement);
   ChatConversationMessagesElement.prototype.__cleanUp = function () {
+    this.noOlder = null;
+    this.oldestId = null;
+    if (this.reportMessageSeen) {
+      this.reportMessageSeen.destroy();
+    }
+    this.reportMessageSeen = null;
     if (this.messageSeen) {
       this.messageSeen.destroy();
     }
@@ -22,7 +33,7 @@ function createChatConversationMessages (lib, applib, jquerylib, templateslib, h
       this.needOlder.destroy();
     }
     this.needOlder = null;
-    this.oldestId = null;
+    HeartbeatHandlerMixin.prototype.destroy.call(this);
     ScrollableMixin.prototype.destroy.call(this);
     FromDataCreator.prototype.__cleanUp.call(this);
   };
@@ -31,11 +42,20 @@ function createChatConversationMessages (lib, applib, jquerylib, templateslib, h
       ret;
     if (!datavalid) {
       this.oldestId = null;
+      this.noOlder = null;
     }
     ret = FromDataCreator.prototype.set_data.call(this, data);
     this.checkMessagesSeenability();
     return ret;
   };
+  /*
+  ChatConversationMessagesElement.prototype.prependData = function (messages) {
+    if (lib.isArray(messages) && messages.length>0) {
+      console.log('first message to prepend', messages[0]);
+    }
+    return FromDataCreator.prototype.prependData.call(this, messages);
+  };
+  */
   ChatConversationMessagesElement.prototype.createFromArryData = function (data) {
     var initsubelcount = lib.isArray(this.subElements) ? this.subElements.length : 0,
       finalsubelcount,
@@ -57,6 +77,9 @@ function createChatConversationMessages (lib, applib, jquerylib, templateslib, h
     return ret;
   };
   ChatConversationMessagesElement.prototype.createFromArryItem = function (item) {
+    if (item.oldest) {
+      this.noOlder = true;
+    }
     this.assignOldestId(item.id);
     return FromDataCreator.prototype.createFromArryItem.call(this, item);
   };
@@ -74,7 +97,9 @@ function createChatConversationMessages (lib, applib, jquerylib, templateslib, h
     ScrollableMixin.prototype.onElementScrolled.apply(this, arguments);
   };
   ChatConversationMessagesElement.prototype.onElementScrolledToTop = function () {
-    this.needOlder.fire(this.oldestId);
+    if (!this.noOlder) {
+      this.needOlder.fire(this.oldestId);
+    }
   };
 
   ChatConversationMessagesElement.prototype.checkMessagesSeenability = function () {
@@ -86,23 +111,57 @@ function createChatConversationMessages (lib, applib, jquerylib, templateslib, h
 
   ChatConversationMessagesElement.prototype.checkSingleMessageSeenability = function (chld) {
     var cd;
+    cd = chld.get('data');
     if (!(chld && chld.$element)) {
       return;
     }
-    //console.log('checkMessagesSeenability', chld.id, chld.get('data'));
-    cd = chld.get('data');
-    if (!cd) {
-      return;
-    }
-    if (cd.from === null) {
-      return;
-    }
-    if (cd.seen) {
+    if (chld.containedMessageSeenByMe()) {
       return;
     }
     if (this.elementIsWithinTheScrollableArea(chld.$element)) {
-      this.messageSeen.fire(cd.id);
+      this._doTheMessageSeenReporting(cd);
     }
+  };
+
+  ChatConversationMessagesElement.prototype._doTheMessageSeenReporting = function (msg) {
+    var mymsgseen = {
+      messageid: msg.id,
+      seenby: null,
+      seenat: Date.now()
+    },
+    mymsgrcvd = {
+      messageid: msg.id,
+      rcvdby: null,
+      rcvdat: Date.now()
+    };
+    this.doSeenMessage(mymsgseen);
+    this.doRcvdMessage(mymsgrcvd);
+    this.messageSeen.fire(msg.id);
+  };
+
+  ChatConversationMessagesElement.prototype.doRcvdMessage = function (rcvdm) {
+    this.findElementAndApply(rcvdm, 'messageid', 'updateFromRcvd');
+  };
+  ChatConversationMessagesElement.prototype.doSeenMessage = function (seenm) {
+    this.findElementAndApply(seenm, 'messageid', 'updateFromSeen');
+  };
+  ChatConversationMessagesElement.prototype.doEditMessage = function (editedm) {
+    this.findElementAndApply(editedm, 'id', 'updateFromEdit');
+  };
+  ChatConversationMessagesElement.prototype.findElementAndApply = function (msg, propname4find, methodname) {
+    var affectedwi = lib.arryOperations.findElementAndIndexWithProperty(this.subElements, 'id', 'chatmessage_'+msg[propname4find]);
+    if (!(affectedwi && affectedwi.element)) {
+      return;
+    }
+    affectedwi.element[methodname](msg);
+  };
+
+  ChatConversationMessagesElement.prototype.doPreviewMessage = function (preview) {
+    var affectedwi = lib.arryOperations.findElementAndIndexWithProperty(this.subElements, 'id', 'chatmessage_'+preview.id);
+    if (!(affectedwi && affectedwi.element)) {
+      return;
+    }
+    affectedwi.element.updatePreview(preview);
   };
 
   applib.registerElementType('ChatConversationMessages', ChatConversationMessagesElement);

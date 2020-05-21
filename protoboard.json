@@ -7,7 +7,10 @@
       "allex:app:lib",
       "allex:templateslite:lib",
       "allex:htmltemplates:lib",
-      "social:chat:weblib"
+      "allex:bufferedtrigger:lib",
+      "social:chat:weblib",
+      "social:messageparsing:lib",
+      "allex_jquerycontextmenuweblib"
     ]
   },
   "additionaltargets": {

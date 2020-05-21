@@ -3,6 +3,31 @@ function createChatWidgetIntegrator (lib, applib) {
 
   var BasicModifier = applib.BasicModifier;
 
+  function plainUserNameForIder () {
+  }
+
+  function doTheNeedGroupCandidates (pp, chatinterfacename, logic, cgh) {
+    //var cgh = this.config.chatgrouphandling,
+    var pathtochatgroupcreator = cgh.needgroupcandidates.chatgroupcreatorpath || 'Chats.ChatGroupCreator',
+      groupcandidatesproducer = cgh.needgroupcandidates.producer;
+    //TODO: check for all the needed sub-fields of cgh
+    //like lib.isFunction(groupcandidatesproducer)
+    logic.push({
+      triggers: pp+'.'+chatinterfacename+'!needGroupCandidates',
+      references: pp+'.'+chatinterfacename+'.'+pathtochatgroupcreator+','+cgh.needgroupcandidates.references,
+      handler: function () {
+        var args = Array.prototype.slice.call(arguments),
+          chatgroupcreatorel = args[0],
+          data;
+        //evnt = args[args.length-1];
+        data = groupcandidatesproducer.apply(null, args.slice(1,-1));
+        data = lib.isArray(data) ? data.slice() : null;
+        chatgroupcreatorel.set('data', data);
+        chatgroupcreatorel.set('actual', !!data);
+      }
+    });
+  }
+
   function ChatWidgetIntegratorModifier (options) {
     if (!('chatwidgetparentpath' in options)) {
       throw new Error('options for '+this.constructor.name+' must have a "chatwidgetparentpath" property');
@@ -39,7 +64,6 @@ function createChatWidgetIntegrator (lib, applib) {
         if (icc.running) {
           return;
         }
-        console.log('got Initiations ', icc.result);
         itf.set('data', icc.result);
       }
     },{
@@ -64,8 +88,21 @@ function createChatWidgetIntegrator (lib, applib) {
       triggers: pp+'.'+chatinterfacename+'!messageToSend',
       references: '.>sendChatMessage'+rlm,
       handler: function(sendChatMessage, evnt){
-        console.log(evnt);
-        sendChatMessage([evnt.togroup, evnt.to, evnt.message_text]);
+        sendChatMessage([evnt.togroup, evnt.to, evnt.message_text, evnt.options]);
+      }
+    },{
+      triggers: pp+'.'+chatinterfacename+'!messageToEdit',
+      references: '.>editChatMessage'+rlm,
+      handler: function(editChatMessage, evnt){
+        console.log('editChatMessage', evnt);
+        editChatMessage([evnt.convid, evnt.id, evnt.message_text, evnt.options]);
+      }
+    },{
+      triggers: pp+'.'+chatinterfacename+'!active',
+      references: '.>reportChatActivity'+rlm,
+      handler: function(reportChatActivity, evnt){
+        console.log('reportChatActivity', evnt);
+        reportChatActivity([evnt.convid]);
       }
     },{
       triggers: pp+'.'+chatinterfacename+'!messageSeen',
@@ -85,29 +122,36 @@ function createChatWidgetIntegrator (lib, applib) {
         }
         itf.set('chatmessages', gcm.result);
       }
+    },{
+      triggers: pp+'.'+chatinterfacename+'!needUserNameForId',
+      references: pp+'.'+chatinterfacename,
+      handler: function (itf, queryobj) {
+        queryobj.username = queryobj.userid;
+        itf.userNameForId(queryobj);
+      }
     });
+    //handle the needUserNameForId
+    /*
+    logic.push({
+    });
+    */
     //handle the needGroupCandidates
     if (this.config.chatgrouphandling) {
-      var cgh = this.config.chatgrouphandling,
-        pathtochatgroupcreator = cgh.needgroupcandidates.chatgroupcreatorpath || 'Chats.ChatGroupCreator',
-        groupcandidatesproducer = cgh.needgroupcandidates.producer;
-      //TODO: check for all the needed sub-fields of cgh
-      //like lib.isFunction(groupcandidatesproducer)
+      doTheNeedGroupCandidates(pp, chatinterfacename, logic, this.config.chatgrouphandling);
+    }
+    //endof needGroupCandidates
+    //handle createNewChatGroupWithMembers
+    if (this.config.createnewchatgroupwithmemberstrigger) {
       logic.push({
-        triggers: pp+'.'+chatinterfacename+'!needGroupCandidates',
-        references: pp+'.'+chatinterfacename+'.'+pathtochatgroupcreator+','+cgh.needgroupcandidates.references,
-        handler: function () {
-          var args = Array.prototype.slice.call(arguments),
-            chatgroupcreatorel = args[0],
-            data;
-          //evnt = args[args.length-1];
-          data = groupcandidatesproducer.apply(null, args.slice(1,-1));
-          data = lib.isArray(data) ? data.slice() : null;
-          chatgroupcreatorel.set('data', data);
-          chatgroupcreatorel.set('actual', !!data);
+        triggers: this.config.createnewchatgroupwithmemberstrigger,
+        references: '.>createNewChatGroupWithMembers'+rlm,
+        handler: function (cncgwmfunc, evnt) {
+          console.log(evnt);
+          cncgwmfunc([evnt.name, evnt.members]);
         }
       });
     }
+    //endof handle createNewChatGroupWithMembers
     if (!this.config.skipconversationloading) {
       logic.push({
         triggers: pp+':actual,'+pp+'.'+chatinterfacename+':initialized',

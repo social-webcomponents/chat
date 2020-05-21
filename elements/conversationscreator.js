@@ -15,6 +15,18 @@ function createChatConversationsElement (lib, applib, templateslib, htmltemplate
     }
     this.chld = null;
   };
+  ChldWithListener.prototype.get = function (propname) {
+    if (!this.chld) {
+      return null;
+    }
+    return this.chld.get(propname);
+  };
+  ChldWithListener.prototype.set = function (propname, val) {
+    if (!this.chld) {
+      return false;
+    }
+    return this.chld.set(propname, val);
+  };
 
   var FromDataCreator = applib.getElementType('FromDataCreator');
 
@@ -50,7 +62,20 @@ function createChatConversationsElement (lib, applib, templateslib, htmltemplate
   ChatConversationsElement.prototype.forgetSelected = function () {
     this.selectedItemId = null;
   };
-
+  ChatConversationsElement.prototype.handleUserActive = function (useractiveobj) {
+    this.traverseSubElementsWithFilter({
+      op: 'eq',
+      field: 'id',
+      value: useractiveobj.conversationid
+    }, useractiver.bind(null, useractiveobj));
+    useractiveobj = null;
+  };
+  function useractiver (useractiveobj, chld, isok) {
+    if (!isok) {
+      return;
+    }
+    chld.chld.showChatUserActivity(useractiveobj);
+  }
 
   applib.registerElementType('ChatConversationsElement', ChatConversationsElement);
 }

@@ -5,16 +5,20 @@ function createChatConversationBrief (lib, applib, templateslib, htmltemplatesli
     o = templateslib.override,
     p = templateslib.process,
     m = htmltemplateslib,
-    ChatConversationBriefMixin = chatweblib.mixins.ChatConversationBrief;
+    ChatConversationBriefMixin = chatweblib.mixins.ChatConversationBrief,
+    ChatActivityDisplayerMixin = chatweblib.mixins.ChatActivityDisplayer;
 
 
   function ChatConversationBriefElement (id, options) {
     DataAwareElement.call(this, id, options);
     ChatConversationBriefMixin.call(this);
+    ChatActivityDisplayerMixin.call(this);
   }
   lib.inherit(ChatConversationBriefElement, DataAwareElement);
   ChatConversationBriefMixin.addMethods(ChatConversationBriefElement);
+  ChatActivityDisplayerMixin.addMethods(ChatConversationBriefElement);
   ChatConversationBriefElement.prototype.__cleanUp = function () {
+    ChatActivityDisplayerMixin.prototype.destroy.call(this);
     ChatConversationBriefMixin.prototype.destroy.call(this);
     DataAwareElement.prototype.__cleanUp.call(this);
   };
