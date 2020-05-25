@@ -456,8 +456,7 @@ function createChatConversationHistory (lib, applib, templateslib, htmltemplates
     this.needMessages.fire({id: this.chatId, oldest: oldest, howmany: this.getConfigVal('pagesize')});
   };
   ChatConversationHistoryElement.prototype.detachFromChat = function () {
-    this.__parent.detachActiveChat();
-    this.set('data', null);
+    this.__parent.detachActiveChat(); //this will trigger onMasterDataChanged(null)
   };
   ChatConversationHistoryElement.prototype.doEdit = function (msgdata) {
     var modes, send;
@@ -736,7 +735,7 @@ function createChatConversationMessages (lib, applib, jquerylib, templateslib, h
 module.exports = createChatConversationMessages;
 
 },{}],6:[function(require,module,exports){
-function createChatConversationsElement (lib, applib, templateslib, htmltemplateslib, utils) {
+function createChatConversationsElement (lib, applib, jquerylib, templateslib, htmltemplateslib, utils) {
   'use strict';
 
   function ChldWithListener (chatrepresentselem, chld) {
@@ -766,15 +765,18 @@ function createChatConversationsElement (lib, applib, templateslib, htmltemplate
     return this.chld.set(propname, val);
   };
 
-  var FromDataCreator = applib.getElementType('FromDataCreator');
+  var FromDataCreator = applib.getElementType('FromDataCreator'),
+    ScrollableMixin = jquerylib.mixins.Scrollable;
 
   function ChatConversationsElement (id, options) {
     FromDataCreator.call(this, id, options);
+    ScrollableMixin.call(this);
     this.selected = this.createBufferableHookCollection();
     this.needGroupCandidates = this.createBufferableHookCollection();
     this.selectedItemId = null;
   }
   lib.inherit(ChatConversationsElement, FromDataCreator);
+  ScrollableMixin.addMethods(ChatConversationsElement);
   ChatConversationsElement.prototype.__cleanUp = function () {
     this.selectedItemId = null;
     if (this.needGroupCandidates){
@@ -785,6 +787,7 @@ function createChatConversationsElement (lib, applib, templateslib, htmltemplate
       this.selected.destroy();
     }
     this.selected = null;
+    ScrollableMixin.prototype.destroy.call(this);
     FromDataCreator.prototype.__cleanUp.call(this);
   };
   ChatConversationsElement.prototype.onChldSelected = function (chld) {
@@ -842,7 +845,7 @@ function createElements (lib, applib, jquerylib, templateslib, htmltemplateslib,
   require('./interfacecreator')(lib, applib, templateslib, htmltemplateslib, chatweblib, utils);
   require('./chatmessagecreator')(lib, applib, templateslib, htmltemplateslib, chatweblib, messageparsinglib, jquerycontextmenulib, utils);
   require('./conversationbriefcreator')(lib, applib, templateslib, htmltemplateslib, chatweblib, utils);
-  require('./conversationscreator')(lib, applib, templateslib, htmltemplateslib, utils);
+  require('./conversationscreator')(lib, applib, jquerylib, templateslib, htmltemplateslib, utils);
   require('./conversationhistorycreator')(lib, applib, templateslib, htmltemplateslib, chatweblib, utils);
   require('./conversationhistoryheadercreator')(lib, applib, jquerylib, templateslib, htmltemplateslib, chatweblib, utils);
   require('./conversationmessagescreator')(lib, applib, jquerylib, templateslib, htmltemplateslib, chatweblib, utils);
@@ -1530,9 +1533,17 @@ function createChatWidgetIntegrator (lib, applib) {
 
   function doTheNeedGroupCandidates (pp, chatinterfacename, logic, cgh) {
     //var cgh = this.config.chatgrouphandling,
-    var pathtochatgroupcreator = cgh.needgroupcandidates.chatgroupcreatorpath || 'Chats.ChatGroupCreator',
-      groupcandidatesproducer = cgh.needgroupcandidates.producer;
+    var pathtochatgroupcreator, groupcandidatesproducer;
     //TODO: check for all the needed sub-fields of cgh
+    if (!cgh) {
+      return;
+    }
+    cgh.needgroupcandidates = cgh.needgroupcandidates || {};
+    pathtochatgroupcreator = cgh.needgroupcandidates.chatgroupcreatorpath || 'Chats.ChatGroupCreator';
+    groupcandidatesproducer = cgh.needgroupcandidates.producer;
+    if (!lib.isFunction(groupcandidatesproducer)) {
+      return;
+    }
     //like lib.isFunction(groupcandidatesproducer)
     logic.push({
       triggers: pp+'.'+chatinterfacename+'!needGroupCandidates',
@@ -1542,7 +1553,7 @@ function createChatWidgetIntegrator (lib, applib) {
           chatgroupcreatorel = args[0],
           data;
         //evnt = args[args.length-1];
-        data = groupcandidatesproducer.apply(null, args.slice(1,-1));
+        data = groupcandidatesproducer.apply(null, args.slice(1));
         data = lib.isArray(data) ? data.slice() : null;
         chatgroupcreatorel.set('data', data);
         chatgroupcreatorel.set('actual', !!data);
@@ -1571,10 +1582,9 @@ function createChatWidgetIntegrator (lib, applib) {
     logic.push({
       triggers: pp+'.'+chatinterfacename+'!needInitiations',
       references: '.>initiateChatConversationsWithUsers'+rlm,
-      handler: function (getChatConversations, userids) {
-        console.log('needInitiations', userids);
-        //getChatConversations([need]);
-        getChatConversations([userids]);
+      handler: function (iccwufunc, userids) {
+        //console.log('needInitiations', userids);
+        iccwufunc([userids]);
       }
     },{
       triggers: '.>initiateChatConversationsWithUsers'+rlm,
@@ -1586,6 +1596,7 @@ function createChatWidgetIntegrator (lib, applib) {
         if (icc.running) {
           return;
         }
+        console.log('got initiations', icc.result);
         itf.set('data', icc.result);
       }
     },{

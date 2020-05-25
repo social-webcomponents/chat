@@ -8,9 +8,17 @@ function createChatWidgetIntegrator (lib, applib) {
 
   function doTheNeedGroupCandidates (pp, chatinterfacename, logic, cgh) {
     //var cgh = this.config.chatgrouphandling,
-    var pathtochatgroupcreator = cgh.needgroupcandidates.chatgroupcreatorpath || 'Chats.ChatGroupCreator',
-      groupcandidatesproducer = cgh.needgroupcandidates.producer;
+    var pathtochatgroupcreator, groupcandidatesproducer;
     //TODO: check for all the needed sub-fields of cgh
+    if (!cgh) {
+      return;
+    }
+    cgh.needgroupcandidates = cgh.needgroupcandidates || {};
+    pathtochatgroupcreator = cgh.needgroupcandidates.chatgroupcreatorpath || 'Chats.ChatGroupCreator';
+    groupcandidatesproducer = cgh.needgroupcandidates.producer;
+    if (!lib.isFunction(groupcandidatesproducer)) {
+      return;
+    }
     //like lib.isFunction(groupcandidatesproducer)
     logic.push({
       triggers: pp+'.'+chatinterfacename+'!needGroupCandidates',
@@ -20,7 +28,7 @@ function createChatWidgetIntegrator (lib, applib) {
           chatgroupcreatorel = args[0],
           data;
         //evnt = args[args.length-1];
-        data = groupcandidatesproducer.apply(null, args.slice(1,-1));
+        data = groupcandidatesproducer.apply(null, args.slice(1));
         data = lib.isArray(data) ? data.slice() : null;
         chatgroupcreatorel.set('data', data);
         chatgroupcreatorel.set('actual', !!data);
@@ -49,10 +57,9 @@ function createChatWidgetIntegrator (lib, applib) {
     logic.push({
       triggers: pp+'.'+chatinterfacename+'!needInitiations',
       references: '.>initiateChatConversationsWithUsers'+rlm,
-      handler: function (getChatConversations, userids) {
-        console.log('needInitiations', userids);
-        //getChatConversations([need]);
-        getChatConversations([userids]);
+      handler: function (iccwufunc, userids) {
+        //console.log('needInitiations', userids);
+        iccwufunc([userids]);
       }
     },{
       triggers: '.>initiateChatConversationsWithUsers'+rlm,
@@ -64,6 +71,7 @@ function createChatWidgetIntegrator (lib, applib) {
         if (icc.running) {
           return;
         }
+        console.log('got initiations', icc.result);
         itf.set('data', icc.result);
       }
     },{

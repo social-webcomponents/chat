@@ -91,8 +91,7 @@ function createChatConversationHistory (lib, applib, templateslib, htmltemplates
     this.needMessages.fire({id: this.chatId, oldest: oldest, howmany: this.getConfigVal('pagesize')});
   };
   ChatConversationHistoryElement.prototype.detachFromChat = function () {
-    this.__parent.detachActiveChat();
-    this.set('data', null);
+    this.__parent.detachActiveChat(); //this will trigger onMasterDataChanged(null)
   };
   ChatConversationHistoryElement.prototype.doEdit = function (msgdata) {
     var modes, send;

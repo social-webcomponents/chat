@@ -1,4 +1,4 @@
-function createChatConversationsElement (lib, applib, templateslib, htmltemplateslib, utils) {
+function createChatConversationsElement (lib, applib, jquerylib, templateslib, htmltemplateslib, utils) {
   'use strict';
 
   function ChldWithListener (chatrepresentselem, chld) {
@@ -28,15 +28,18 @@ function createChatConversationsElement (lib, applib, templateslib, htmltemplate
     return this.chld.set(propname, val);
   };
 
-  var FromDataCreator = applib.getElementType('FromDataCreator');
+  var FromDataCreator = applib.getElementType('FromDataCreator'),
+    ScrollableMixin = jquerylib.mixins.Scrollable;
 
   function ChatConversationsElement (id, options) {
     FromDataCreator.call(this, id, options);
+    ScrollableMixin.call(this);
     this.selected = this.createBufferableHookCollection();
     this.needGroupCandidates = this.createBufferableHookCollection();
     this.selectedItemId = null;
   }
   lib.inherit(ChatConversationsElement, FromDataCreator);
+  ScrollableMixin.addMethods(ChatConversationsElement);
   ChatConversationsElement.prototype.__cleanUp = function () {
     this.selectedItemId = null;
     if (this.needGroupCandidates){
@@ -47,6 +50,7 @@ function createChatConversationsElement (lib, applib, templateslib, htmltemplate
       this.selected.destroy();
     }
     this.selected = null;
+    ScrollableMixin.prototype.destroy.call(this);
     FromDataCreator.prototype.__cleanUp.call(this);
   };
   ChatConversationsElement.prototype.onChldSelected = function (chld) {
