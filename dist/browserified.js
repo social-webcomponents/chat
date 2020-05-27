@@ -444,7 +444,7 @@ function createChatConversationHistory (lib, applib, templateslib, htmltemplates
     }
     if (data.id !== this.chatId && data.chatId !== this.chatId) {
       this.chatId = data.chatId || data.id;
-      this.p2p = data.conv.p2p;
+      this.p2p = !!data.resolve;//data.conv.p2p;
       this.conversationChanged.fire(this.chatId);
       this.askForMessages();
     }
@@ -1281,7 +1281,9 @@ function createChatWidget (lib, applib, templateslib, htmltemplateslib, utils) {
     var chatsname,
       historyname,
       createchatgroupname,
-      chatgroupcreatorname;
+      chatgroupcreatorname,
+      elements,
+      conversationselements;
     params = params || {};
 
     names = names || {};
@@ -1291,226 +1293,232 @@ function createChatWidget (lib, applib, templateslib, htmltemplateslib, utils) {
     createchatgroupname = names.createchatgroup || 'CreateChatGroup';
     chatgroupcreatorname = names.chatgroupcreator || 'ChatGroupCreator';
 
+    conversationselements = [{
+      name: createchatgroupname,
+      type: types.createchatgroup || 'ClickableElement',
+      options: lib.extend({
+      }, params.createchatgroup)
+    }];
+    if (!params.nogroups) {
+      conversationselements.push({
+        name: chatgroupcreatorname,
+        type: types.chatgroupcreator || '', //!TODO: should come up with a default ChatGroupCreator type
+        options: lib.extend({
+        }, params.chatgroupcreator)
+      });
+    }
+    elements = [{
+      name: chatsname,
+      type: types.chats || 'ChatConversationsElement',
+      options: lib.extend({
+        actual: true,
+        self_selector: '.',
+        default_markup: o(m.div,
+          'CLASS', params.ChatsClass || ''
+        ),
+        elements: conversationselements,
+        subDescriptorFromData: function (item) {
+          return {
+            name: item.id.replace(zeroString, '___'),
+            type: types.conversationbrief || 'ChatConversationBriefElement',
+            options: lib.extend({
+              actual: true,
+              self_selector: '.',
+              default_markup: o(m.div,
+                'CONTENTS', '',
+                'CLASS', params.ChatBriefContainerClass
+              ),
+              //data_markup: '<div><div>profile pic of {{item.resolve}}</div><div>nick of {{item.resolve}}</div><div class="LastMessage"></div></div>',
+              data_markup: o(m.div,
+                'CONTENTS', [
+                  o(m.div,
+                    'CLASS', params.ProfilePicClass || '',
+                    'CONTENTS', o(m.div,
+                      'CLASS', 'profile-pic-container',
+                      'CONTENTS', [
+                        o(m.div,
+                          'CLASS', 'profile-pic-dummy',
+                          'CONTENTS', ''
+                        ),
+                        o(m.div,
+                          'CLASS', 'profile-pic-content',
+                          'CONTENTS', '{{item.resolve.charAt(0)}}',
+                        )
+                      ]
+                    )
+                  ),
+                  o(m.div,
+                    'CLASS', params.ProfileNickAndLastMessageContainer || '',
+                    'CONTENTS', o(m.div,
+                    'CONTENTS', [
+                      o(m.div,
+                        'CLASS', params.ProfileNickClass || '',
+                        'CONTENTS', 'Nick of {{item.resolve}}' 
+                      ),
+                      o(m.div,
+                        'CLASS', 'LastMessage' + (params.LastMessageClass ? ' ' + params.LastMessageClass : ''),
+                        'CONTENTS', '' 
+                      )
+                    ])
+                  )
+                ],
+                'CLASS', params.ChatBriefClass || ''
+              ),
+              elements: [{
+                name: 'LastMessage',
+                type: types.message || 'ChatMessage',
+                options: {
+                  actual: true,
+                  self_selector: '.',
+                  data_markup_options: params.lastmessage,
+                  data: item.conv.lastm
+                }
+              },{
+                name: 'UnreadMessages',
+                type: 'WebElement',
+                options: {
+                  actual: false,
+                  self_selector: '.',
+                  default_markup: o(m.div,
+                    'CONTENTS', 'GDE SU UNREAD MESSAGES?'
+                  )
+                }
+              }]
+            }, params.conversationbrief)
+          }
+        }
+      }, params.chats),
+      links: [/*{
+        source: '.'+createchatgroupname+'!clicked',
+        target: '.'+chatgroupcreatorname+':actual',
+        filter: function () {
+          console.log('reklo bi se da je CreateChatGroup kliknut');
+          return true;
+        }
+      }*/{
+        source: '.'+createchatgroupname+'!clicked',
+        target: '.!needGroupCandidates'
+      }]
+    },{
+      name: historyname,
+      type: types.history || 'ChatConversationHistory',
+      options: lib.extend({
+        //actual: true,
+        self_selector: '.',
+        default_markup: o(m.div,
+          'CLASS', params.ChatHistoryClass || ''
+        ),
+        elements: [{
+          name: 'Header',
+          type: types.historyheader || 'ChatConversationHistoryHeaderElement',
+          options: lib.extend({
+            actual: true,
+            self_selector: '.',
+            default_markup: '<div><span class="chathistoryheadernick"></span></div>',
+            onMasterDataChanged: function (me, data) {
+              me.$element.find('.chathistoryheadernick').text(
+                lib.isVal(data) ? data.conv.name || data.resolve : ''
+              );
+            }
+          }, params.historyheader)
+        },{
+          name: 'Messages',
+          type: types.messages || 'ChatConversationMessages',
+          options: lib.extend({
+            actual: true,
+            self_selector: '.',
+            skip_purge_subelements: true,
+            default_markup: o(m.div,
+              'CLASS', params.MessagesClass || ''
+            ),
+            subDescriptorFromData: function (item) {
+              return {
+                name: 'chatmessage_'+item.id,
+                type: 'ChatMessage',
+                options: {
+                  actual: true,
+                  self_selector: '.',
+                  default_markup: o(m.div,
+                    'CLASS', params.ChatMessageClass || 'ChatMessage'
+                  ),
+                  contextmenu: {
+                    selector: '.mychat',
+                    items: {
+                      edit: {name: 'Edit', icon: 'edit'}
+                    }
+                  },
+                  data_markup_options: params.messages,
+                  data: item
+                }
+              };
+            },
+            elements: [{
+              name: 'UnreadMessages',
+              type: 'WebElement',
+              options: {
+                self_selector: '.',
+                default_markup: o(m.div
+                )
+              }
+            }]
+          }, params.messages)
+        },{
+          name: 'Modes',
+          type: 'ChatModesElement',
+          options: {
+            actual: true,
+            self_selector: 'attrib:chatelement'
+          }
+        },{
+          name: 'Send',
+          type: 'SendChatMessageFormLogic',
+          options: {
+            actual: true,
+            self_selector: 'attrib:chatelement',
+            default_markup: createSendMessageForm(params.sendmessageform),
+            validation: {
+              message_text: {
+                regex: '[\\w,\\W]+'
+              }
+            }
+          }
+        }]
+      }, params.history),
+      links: [{
+        source: '.:data',
+        target: '.:actual'
+      },{
+        source: '.Messages!messageSeen',
+        target: '.!messageSeen'
+      }],
+      logic: [{
+        triggers: '.Messages!needOlder',
+        references: '.',
+        handler: function (me, noevnt) {
+          me.oldestMessageId = noevnt;
+          me.askForMessages();
+        }
+      }/* obsolete naive logic, now ChatConversationHistoryElement deals with this ,{
+        triggers: '.Send!submit',
+        references: '.,.Send',
+        handler: function (me, form, submitted) {
+          var mydata = me.get('data');
+          me.send.fire(lib.extend(submitted, {
+            togroup: mydata.id,
+            to: mydata.resolve
+          }));
+          form.resetForm();
+        }
+      }*/]
+    }]
+
     return {
       actual: params.actual,
       self_selector: '.',
       default_markup: o(m.div,
         'CLASS', params.ChatClass || ''
       ),
-      elements: [{
-        name: chatsname,
-        type: types.chats || 'ChatConversationsElement',
-        options: lib.extend({
-          actual: true,
-          self_selector: '.',
-          default_markup: o(m.div,
-            'CLASS', params.ChatsClass || ''
-          ),
-          elements: [{
-            name: createchatgroupname,
-            type: types.createchatgroup || 'ClickableElement',
-            options: lib.extend({
-            }, params.createchatgroup)
-          },{
-            name: chatgroupcreatorname,
-            type: types.chatgroupcreator || '', //!TODO: should come up with a default ChatGroupCreator type
-            options: lib.extend({
-            }, params.chatgroupcreator)
-          }],
-          subDescriptorFromData: function (item) {
-            return {
-              name: item.id.replace(zeroString, '___'),
-              type: types.conversationbrief || 'ChatConversationBriefElement',
-              options: lib.extend({
-                actual: true,
-                self_selector: '.',
-                default_markup: o(m.div,
-                  'CONTENTS', '',
-                  'CLASS', params.ChatBriefContainerClass
-                ),
-                //data_markup: '<div><div>profile pic of {{item.resolve}}</div><div>nick of {{item.resolve}}</div><div class="LastMessage"></div></div>',
-                data_markup: o(m.div,
-                  'CONTENTS', [
-                    o(m.div,
-                      'CLASS', params.ProfilePicClass || '',
-                      'CONTENTS', o(m.div,
-                        'CLASS', 'profile-pic-container',
-                        'CONTENTS', [
-                          o(m.div,
-                            'CLASS', 'profile-pic-dummy',
-                            'CONTENTS', ''
-                          ),
-                          o(m.div,
-                            'CLASS', 'profile-pic-content',
-                            'CONTENTS', '{{item.resolve.charAt(0)}}',
-                          )
-                        ]
-                      )
-                    ),
-                    o(m.div,
-                      'CLASS', params.ProfileNickAndLastMessageContainer || '',
-                      'CONTENTS', o(m.div,
-                      'CONTENTS', [
-                        o(m.div,
-                          'CLASS', params.ProfileNickClass || '',
-                          'CONTENTS', 'Nick of {{item.resolve}}' 
-                        ),
-                        o(m.div,
-                          'CLASS', 'LastMessage' + (params.LastMessageClass ? ' ' + params.LastMessageClass : ''),
-                          'CONTENTS', '' 
-                        )
-                      ])
-                    )
-                  ],
-                  'CLASS', params.ChatBriefClass || ''
-                ),
-                elements: [{
-                  name: 'LastMessage',
-                  type: types.message || 'ChatMessage',
-                  options: {
-                    actual: true,
-                    self_selector: '.',
-                    data_markup_options: params.lastmessage,
-                    data: item.conv.lastm
-                  }
-                },{
-                  name: 'UnreadMessages',
-                  type: 'WebElement',
-                  options: {
-                    actual: false,
-                    self_selector: '.',
-                    default_markup: o(m.div,
-                      'CONTENTS', 'GDE SU UNREAD MESSAGES?'
-                    )
-                  }
-                }]
-              }, params.conversationbrief)
-            }
-          }
-        }, params.chats),
-        links: [/*{
-          source: '.'+createchatgroupname+'!clicked',
-          target: '.'+chatgroupcreatorname+':actual',
-          filter: function () {
-            console.log('reklo bi se da je CreateChatGroup kliknut');
-            return true;
-          }
-        }*/{
-          source: '.'+createchatgroupname+'!clicked',
-          target: '.!needGroupCandidates'
-        }]
-      },{
-        name: historyname,
-        type: types.history || 'ChatConversationHistory',
-        options: lib.extend({
-          //actual: true,
-          self_selector: '.',
-          default_markup: o(m.div,
-            'CLASS', params.ChatHistoryClass || ''
-          ),
-          elements: [{
-            name: 'Header',
-            type: types.historyheader || 'ChatConversationHistoryHeaderElement',
-            options: lib.extend({
-              actual: true,
-              self_selector: '.',
-              default_markup: '<div><span class="chathistoryheadernick"></span></div>',
-              onMasterDataChanged: function (me, data) {
-                me.$element.find('.chathistoryheadernick').text(
-                  lib.isVal(data) ? data.conv.name || data.resolve : ''
-                );
-              }
-            }, params.historyheader)
-          },{
-            name: 'Messages',
-            type: types.messages || 'ChatConversationMessages',
-            options: lib.extend({
-              actual: true,
-              self_selector: '.',
-              skip_purge_subelements: true,
-              default_markup: o(m.div,
-                'CLASS', params.MessagesClass || ''
-              ),
-              subDescriptorFromData: function (item) {
-                return {
-                  name: 'chatmessage_'+item.id,
-                  type: 'ChatMessage',
-                  options: {
-                    actual: true,
-                    self_selector: '.',
-                    default_markup: o(m.div,
-                      'CLASS', params.ChatMessageClass || 'ChatMessage'
-                    ),
-                    contextmenu: {
-                      selector: '.mychat',
-                      items: {
-                        edit: {name: 'Edit', icon: 'edit'}
-                      }
-                    },
-                    data_markup_options: params.messages,
-                    data: item
-                  }
-                };
-              },
-              elements: [{
-                name: 'UnreadMessages',
-                type: 'WebElement',
-                options: {
-                  self_selector: '.',
-                  default_markup: o(m.div
-                  )
-                }
-              }]
-            }, params.messages)
-          },{
-            name: 'Modes',
-            type: 'ChatModesElement',
-            options: {
-              actual: true,
-              self_selector: 'attrib:chatelement'
-            }
-          },{
-            name: 'Send',
-            type: 'SendChatMessageFormLogic',
-            options: {
-              actual: true,
-              self_selector: 'attrib:chatelement',
-              default_markup: createSendMessageForm(params.sendmessageform),
-              validation: {
-                message_text: {
-                  regex: '[\\w,\\W]+'
-                }
-              }
-            }
-          }]
-        }, params.history),
-        links: [{
-          source: '.:data',
-          target: '.:actual'
-        },{
-          source: '.Messages!messageSeen',
-          target: '.!messageSeen'
-        }],
-        logic: [{
-          triggers: '.Messages!needOlder',
-          references: '.',
-          handler: function (me, noevnt) {
-            me.oldestMessageId = noevnt;
-            me.askForMessages();
-          }
-        }/* obsolete naive logic, now ChatConversationHistoryElement deals with this ,{
-          triggers: '.Send!submit',
-          references: '.,.Send',
-          handler: function (me, form, submitted) {
-            var mydata = me.get('data');
-            me.send.fire(lib.extend(submitted, {
-              togroup: mydata.id,
-              to: mydata.resolve
-            }));
-            form.resetForm();
-          }
-        }*/]
-      }]
+      elements: elements
     };
   };
   ChatWidgetModifier.prototype.DEFAULT_CONFIG = function () {
@@ -1534,7 +1542,6 @@ function createChatWidgetIntegrator (lib, applib) {
   function doTheNeedGroupCandidates (pp, chatinterfacename, logic, cgh) {
     //var cgh = this.config.chatgrouphandling,
     var pathtochatgroupcreator, groupcandidatesproducer;
-    //TODO: check for all the needed sub-fields of cgh
     if (!cgh) {
       return;
     }
@@ -1544,7 +1551,6 @@ function createChatWidgetIntegrator (lib, applib) {
     if (!lib.isFunction(groupcandidatesproducer)) {
       return;
     }
-    //like lib.isFunction(groupcandidatesproducer)
     logic.push({
       triggers: pp+'.'+chatinterfacename+'!needGroupCandidates',
       references: pp+'.'+chatinterfacename+'.'+pathtochatgroupcreator+','+cgh.needgroupcandidates.references,
@@ -1553,9 +1559,25 @@ function createChatWidgetIntegrator (lib, applib) {
           chatgroupcreatorel = args[0],
           data;
         //evnt = args[args.length-1];
-        data = groupcandidatesproducer.apply(null, args.slice(1));
+        data = groupcandidatesproducer.apply(null, args.slice(1, -1));
         data = lib.isArray(data) ? data.slice() : null;
-        chatgroupcreatorel.set('data', data);
+        chatgroupcreatorel.set('data', {candidates: data});
+        chatgroupcreatorel.set('actual', !!data);
+      }
+    });
+    logic.push({
+      triggers: pp+'.'+chatinterfacename+'!needGroupInfoDisplay',
+      references: pp+'.'+chatinterfacename+'.'+pathtochatgroupcreator+','+cgh.needgroupcandidates.references,
+      handler: function () {
+        var args = Array.prototype.slice.call(arguments),
+          chatgroupcreatorel = args[0],
+          groupdata = args[args.length-1],
+          data;
+        //evnt = args[args.length-1];
+        data = groupcandidatesproducer.apply(null, args.slice(1, -1));
+        data = lib.isArray(data) ? data.slice() : null;
+        console.log('needGroupInfoDisplay for group', groupdata);
+        chatgroupcreatorel.set('data', {group: groupdata, candidates: data});
         chatgroupcreatorel.set('actual', !!data);
       }
     });

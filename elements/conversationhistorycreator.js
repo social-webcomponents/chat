@@ -79,7 +79,7 @@ function createChatConversationHistory (lib, applib, templateslib, htmltemplates
     }
     if (data.id !== this.chatId && data.chatId !== this.chatId) {
       this.chatId = data.chatId || data.id;
-      this.p2p = data.conv.p2p;
+      this.p2p = !!data.resolve;//data.conv.p2p;
       this.conversationChanged.fire(this.chatId);
       this.askForMessages();
     }

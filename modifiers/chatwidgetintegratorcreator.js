@@ -9,7 +9,6 @@ function createChatWidgetIntegrator (lib, applib) {
   function doTheNeedGroupCandidates (pp, chatinterfacename, logic, cgh) {
     //var cgh = this.config.chatgrouphandling,
     var pathtochatgroupcreator, groupcandidatesproducer;
-    //TODO: check for all the needed sub-fields of cgh
     if (!cgh) {
       return;
     }
@@ -19,7 +18,6 @@ function createChatWidgetIntegrator (lib, applib) {
     if (!lib.isFunction(groupcandidatesproducer)) {
       return;
     }
-    //like lib.isFunction(groupcandidatesproducer)
     logic.push({
       triggers: pp+'.'+chatinterfacename+'!needGroupCandidates',
       references: pp+'.'+chatinterfacename+'.'+pathtochatgroupcreator+','+cgh.needgroupcandidates.references,
@@ -28,9 +26,25 @@ function createChatWidgetIntegrator (lib, applib) {
           chatgroupcreatorel = args[0],
           data;
         //evnt = args[args.length-1];
-        data = groupcandidatesproducer.apply(null, args.slice(1));
+        data = groupcandidatesproducer.apply(null, args.slice(1, -1));
         data = lib.isArray(data) ? data.slice() : null;
-        chatgroupcreatorel.set('data', data);
+        chatgroupcreatorel.set('data', {candidates: data});
+        chatgroupcreatorel.set('actual', !!data);
+      }
+    });
+    logic.push({
+      triggers: pp+'.'+chatinterfacename+'!needGroupInfoDisplay',
+      references: pp+'.'+chatinterfacename+'.'+pathtochatgroupcreator+','+cgh.needgroupcandidates.references,
+      handler: function () {
+        var args = Array.prototype.slice.call(arguments),
+          chatgroupcreatorel = args[0],
+          groupdata = args[args.length-1],
+          data;
+        //evnt = args[args.length-1];
+        data = groupcandidatesproducer.apply(null, args.slice(1, -1));
+        data = lib.isArray(data) ? data.slice() : null;
+        console.log('needGroupInfoDisplay for group', groupdata);
+        chatgroupcreatorel.set('data', {group: groupdata, candidates: data});
         chatgroupcreatorel.set('actual', !!data);
       }
     });
