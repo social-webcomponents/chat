@@ -126,6 +126,9 @@ function createChatConversationHistory (lib, applib, templateslib, htmltemplates
       msg = null;
       return;
     }
+    if (!(mydata && mydata.id)) {
+      return;
+    }
     this.send.fire(lib.extend({}, msg, {
       togroup: mydata.id,
       to: mydata.resolve || '',
@@ -167,6 +170,24 @@ function createChatConversationHistory (lib, applib, templateslib, htmltemplates
     try {
       this.getElement('Messages').handleHeartbeat(timestamp);
     } catch (ignore) {}
+  };
+  ChatConversationHistoryElement.prototype.onMessageBoxFocused = function () {
+    if (!this.get('actual')) {
+      return;
+    }
+    if (!this.__parent) {
+      return;
+    }
+    this.__parent.messageBoxFocused.fire(this);
+  };
+  ChatConversationHistoryElement.prototype.onMessageBoxBlurred = function () {
+    if (!this.get('actual')) {
+      return;
+    }
+    if (!this.__parent) {
+      return;
+    }
+    this.__parent.messageBoxBlurred.fire(this);
   };
 
   ChatConversationHistoryElement.prototype.postInitializationMethodNames = ChatConversationHistoryElement.prototype.postInitializationMethodNames.concat(['initChatConversationHistory']);

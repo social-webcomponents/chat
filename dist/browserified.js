@@ -491,6 +491,9 @@ function createChatConversationHistory (lib, applib, templateslib, htmltemplates
       msg = null;
       return;
     }
+    if (!(mydata && mydata.id)) {
+      return;
+    }
     this.send.fire(lib.extend({}, msg, {
       togroup: mydata.id,
       to: mydata.resolve || '',
@@ -532,6 +535,24 @@ function createChatConversationHistory (lib, applib, templateslib, htmltemplates
     try {
       this.getElement('Messages').handleHeartbeat(timestamp);
     } catch (ignore) {}
+  };
+  ChatConversationHistoryElement.prototype.onMessageBoxFocused = function () {
+    if (!this.get('actual')) {
+      return;
+    }
+    if (!this.__parent) {
+      return;
+    }
+    this.__parent.messageBoxFocused.fire(this);
+  };
+  ChatConversationHistoryElement.prototype.onMessageBoxBlurred = function () {
+    if (!this.get('actual')) {
+      return;
+    }
+    if (!this.__parent) {
+      return;
+    }
+    this.__parent.messageBoxBlurred.fire(this);
   };
 
   ChatConversationHistoryElement.prototype.postInitializationMethodNames = ChatConversationHistoryElement.prototype.postInitializationMethodNames.concat(['initChatConversationHistory']);
@@ -1033,15 +1054,20 @@ function createSendForm (lib, applib, jquerylib, templateslib, htmltemplateslib,
     FormLogic.call(this, id, options);
     this.trigger = new BufferedTrigger(this.fireActive.bind(this), options.input_timeout||5000);
     this.active = this.createBufferableHookCollection();
+    this.focuser = this.onMessageBoxFocused.bind(this);
+    this.blurrer = this.onMessageBoxBlurred.bind(this);
   }
   lib.inherit(SendChatMessageFormLogic, FormLogic);
   SendChatMessageFormLogic.prototype.__cleanUp = function () {
+    this.messageBoxElementOperation('off', 'blur', this.blurrer);
+    this.messageBoxElementOperation('off', 'focus', this.focuser);
+    this.focuser = null;
     if (this.active) {
       this.active.destroy();
     }
     this.active = null;
     if (this.trigger) {
-      this.$element.find('[name="message_text"]').off('keyup', this.trigger.triggerer);
+      this.messageBoxElementOperation('off', 'keyup', this.trigger.triggerer);
       this.trigger.destroy();
     }
     this.trigger = null;
@@ -1067,21 +1093,50 @@ function createSendForm (lib, applib, jquerylib, templateslib, htmltemplateslib,
     return this.$element.find('[name="message_text"]').val();
   };
   SendChatMessageFormLogic.prototype.focus = function () {
-    if (!this.$element) {
-      return;
-    }
-    this.$element.find('[name="message_text"]').focus();
+    this.messageBoxElementOperation('focus');
   };
   SendChatMessageFormLogic.prototype.initSendChatMessageFormLogic = function () {
     if (this.trigger) {
-      this.$element.find('[name="message_text"]').on('keyup', this.trigger.triggerer);
+      //this.$element.find('[name="message_text"]').on('keyup', this.trigger.triggerer);
+      this.messageBoxElementOperation('on', 'keyup', this.trigger.triggerer);
     }
+    this.messageBoxElementOperation('on', 'focus', this.focuser);
+    this.messageBoxElementOperation('on', 'blur', this.blurrer);
+  };
+  SendChatMessageFormLogic.prototype.messageBoxElementOperation = function () {
+    var mbel;
+    if (!this.$element) {
+      return null;
+    }
+    mbel = this.$element.find('[name="message_text"]');
+    if (!(mbel && mbel.length>0)) {
+      return null;
+    }
+    return mbel[arguments[0]].apply(mbel, Array.prototype.slice.call(arguments, 1));
   };
   SendChatMessageFormLogic.prototype.fireActive = function () {
     console.log('typing!');
     if (this.active) {
       this.active.fire(true);
     }
+  };
+  SendChatMessageFormLogic.prototype.onMessageBoxFocused = function () {
+    if (!this.get('actual')) {
+      return;
+    }
+    if (!this.__parent) {
+      return;
+    }
+    this.__parent.onMessageBoxFocused();
+  };
+  SendChatMessageFormLogic.prototype.onMessageBoxBlurred = function () {
+    if (!this.get('actual')) {
+      return;
+    }
+    if (!this.__parent) {
+      return;
+    }
+    this.__parent.onMessageBoxBlurred();
   };
 
   SendChatMessageFormLogic.prototype.postInitializationMethodNames = SendChatMessageFormLogic.prototype.postInitializationMethodNames.concat(['initSendChatMessageFormLogic']);
@@ -1771,7 +1826,7 @@ function createInitChatPrePreprocessor (lib, applib) {
   }
   lib.inherit(InitChatPrePreprocessor, BasicProcessor);
   function commander (envname, rlm, fnname) {
-    console.log(fnname+'On'+rlm);
+    //console.log(fnname+'On'+rlm);
     return {
       environment: envname,
       entity: {
@@ -1784,7 +1839,7 @@ function createInitChatPrePreprocessor (lib, applib) {
     };
   }
   function allexstatedser (envname, rlm, dsname) {
-    console.log(dsname+'On'+rlm);
+    //console.log(dsname+'On'+rlm);
     return {
       environment: envname,
       entity: {

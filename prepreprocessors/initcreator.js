@@ -8,7 +8,7 @@ function createInitChatPrePreprocessor (lib, applib) {
   }
   lib.inherit(InitChatPrePreprocessor, BasicProcessor);
   function commander (envname, rlm, fnname) {
-    console.log(fnname+'On'+rlm);
+    //console.log(fnname+'On'+rlm);
     return {
       environment: envname,
       entity: {
@@ -21,7 +21,7 @@ function createInitChatPrePreprocessor (lib, applib) {
     };
   }
   function allexstatedser (envname, rlm, dsname) {
-    console.log(dsname+'On'+rlm);
+    //console.log(dsname+'On'+rlm);
     return {
       environment: envname,
       entity: {
