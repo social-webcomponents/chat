@@ -147,7 +147,7 @@ function createChatMessageElement (lib, applib, templateslib, htmltemplateslib, 
         'CONTENTS', '{{item.preview.description}}'
       ),o(m.img,
         'CLASS', 'previewimage Image',
-        'ATTRS', 'style="display:{{(item.preview && item.preview.image) ? \'block\' : \'none\'}}" src="{{item.preview.image}}"',
+        'ATTRS', 'style="display:{{(item.preview && item.preview.image) ? \'block\' : \'none\'}}" {{this.previewDimension("width", item)}} {{this.previewDimension("height", item)}} src="{{item.preview.image}}"',
         'CONTENTS', '{{item.preview.description}}'
       )]
     ),o(m.div,
@@ -182,6 +182,17 @@ function createChatMessageElement (lib, applib, templateslib, htmltemplateslib, 
       'CONTENTS', retContent 
     );
   };
+  ChatMessageElement.prototype.previewDimension = function (dimname, item) {
+    var propname;
+    if (!(item && item.preview)) {
+      return '';
+    }
+    propname = 'image'+lib.capitalize(dimname, true);
+    if (!item.preview[propname]) {
+      return;
+    }
+    return dimname+'="'+item.preview[propname]+'"';
+  }
   ChatMessageElement.prototype.onContextMenu_edit = function () {
     this.__parent.__parent.doEdit(this.get('data'));
   };
@@ -634,14 +645,6 @@ function createChatConversationMessages (lib, applib, jquerylib, templateslib, h
     this.checkMessagesSeenability();
     return ret;
   };
-  /*
-  ChatConversationMessagesElement.prototype.prependData = function (messages) {
-    if (lib.isArray(messages) && messages.length>0) {
-      console.log('first message to prepend', messages[0]);
-    }
-    return FromDataCreator.prototype.prependData.call(this, messages);
-  };
-  */
   ChatConversationMessagesElement.prototype.createFromArryData = function (data) {
     var initsubelcount = lib.isArray(this.subElements) ? this.subElements.length : 0,
       finalsubelcount,
@@ -657,6 +660,7 @@ function createChatConversationMessages (lib, applib, jquerylib, templateslib, h
     }
     //if (initsubelcount === 0 || (initoldest !== finaloldest)) {
     if (initsubelcount===0 || wasatbottom) {
+      console.log('scrollElementToBottom!');
       this.scrollElementToBottom();
       return ret;
     }
@@ -811,6 +815,17 @@ function createChatConversationsElement (lib, applib, jquerylib, templateslib, h
     ScrollableMixin.prototype.destroy.call(this);
     FromDataCreator.prototype.__cleanUp.call(this);
   };
+  ChatConversationsElement.prototype.set_data = function (data) {
+    var ret = FromDataCreator.prototype.set_data.call(this, data);
+    /*
+    console.log(this.$element.find('.match-container').filter(hasdataer));
+    */
+    console.log(this.config);
+    this.$element.find('.match-container').filter(hasdataer).sort(
+      chatsorter
+    ).appendTo(this.$element.find('.hers-representatives'));
+    return ret;
+  };
   ChatConversationsElement.prototype.onChldSelected = function (chld) {
     this.selectedItemId = chld ? chld.id : null;
     this.selected.fire(chld);
@@ -852,6 +867,15 @@ function createChatConversationsElement (lib, applib, jquerylib, templateslib, h
     }
     //console.log('chldmsgseener', chld.chld);
     chld.chld.maybeDecreaseUnreadMessages();
+  }
+  function chatsorter (a, b) {
+    var ad = jQuery(a).data('chat'), bd = jQuery(b).data('chat');
+    var acrit = ad && ad.conv && ad.conv.lastm && ad.conv.lastm.created ? ad.conv.lastm.created : 0,
+      bcrit = bd && bd.conv && bd.conv.lastm && bd.conv.lastm.created ? bd.conv.lastm.created : 0;
+    return bcrit-acrit;
+  }
+  function hasdataer (index, e) {
+    return !!jQuery(e).data('chat');
   }
 
   applib.registerElementType('ChatConversationsElement', ChatConversationsElement);
@@ -1631,9 +1655,27 @@ function createChatWidgetIntegrator (lib, applib) {
         //evnt = args[args.length-1];
         data = groupcandidatesproducer.apply(null, args.slice(1, -1));
         data = lib.isArray(data) ? data.slice() : null;
-        console.log('needGroupInfoDisplay for group', groupdata);
+        //console.log('needGroupInfoDisplay for group', groupdata);
         chatgroupcreatorel.set('data', {group: groupdata, candidates: data});
         chatgroupcreatorel.set('actual', !!data);
+      }
+    });
+  }
+
+  function doTheFullDataHandling (pp, chatinterfacename, logic, fdh) {
+    var producer = fdh.id2fulldata;
+    logic.push({
+      triggers: pp+'.'+chatinterfacename+'!needFullDataForId',
+      references: pp+'.'+chatinterfacename+','+fdh.references,
+      handler: function () {
+        var itf = arguments[0],
+          args = Array.prototype.slice.call(arguments, 1, -1),
+          queryobj = arguments[arguments.length-1],
+          prodres = producer.apply(null, args.concat(queryobj.id));
+        itf.fullDataForId({
+          callback: queryobj.callback,
+          fulldata: prodres
+        });
       }
     });
   }
@@ -1667,9 +1709,11 @@ function createChatWidgetIntegrator (lib, applib) {
       triggers: '.>initiateChatConversationsWithUsers'+rlm,
       references: pp+','+pp+'.'+chatinterfacename,
       handler: function (me, itf, icc) {
+        /*
         if (!me.get('actual')) {
           return;
         }
+        */
         if (icc.running) {
           return;
         }
@@ -1750,6 +1794,9 @@ function createChatWidgetIntegrator (lib, applib) {
       doTheNeedGroupCandidates(pp, chatinterfacename, logic, this.config.chatgrouphandling);
     }
     //endof needGroupCandidates
+    if (this.config.fulldatahandling) {
+      doTheFullDataHandling(pp, chatinterfacename, logic, this.config.fulldatahandling);
+    }
     //handle createNewChatGroupWithMembers
     if (this.config.createnewchatgroupwithmemberstrigger) {
       logic.push({

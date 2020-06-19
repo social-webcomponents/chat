@@ -53,6 +53,17 @@ function createChatConversationsElement (lib, applib, jquerylib, templateslib, h
     ScrollableMixin.prototype.destroy.call(this);
     FromDataCreator.prototype.__cleanUp.call(this);
   };
+  ChatConversationsElement.prototype.set_data = function (data) {
+    var ret = FromDataCreator.prototype.set_data.call(this, data);
+    /*
+    console.log(this.$element.find('.match-container').filter(hasdataer));
+    */
+    console.log(this.config);
+    this.$element.find('.match-container').filter(hasdataer).sort(
+      chatsorter
+    ).appendTo(this.$element.find('.hers-representatives'));
+    return ret;
+  };
   ChatConversationsElement.prototype.onChldSelected = function (chld) {
     this.selectedItemId = chld ? chld.id : null;
     this.selected.fire(chld);
@@ -94,6 +105,15 @@ function createChatConversationsElement (lib, applib, jquerylib, templateslib, h
     }
     //console.log('chldmsgseener', chld.chld);
     chld.chld.maybeDecreaseUnreadMessages();
+  }
+  function chatsorter (a, b) {
+    var ad = jQuery(a).data('chat'), bd = jQuery(b).data('chat');
+    var acrit = ad && ad.conv && ad.conv.lastm && ad.conv.lastm.created ? ad.conv.lastm.created : 0,
+      bcrit = bd && bd.conv && bd.conv.lastm && bd.conv.lastm.created ? bd.conv.lastm.created : 0;
+    return bcrit-acrit;
+  }
+  function hasdataer (index, e) {
+    return !!jQuery(e).data('chat');
   }
 
   applib.registerElementType('ChatConversationsElement', ChatConversationsElement);

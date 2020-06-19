@@ -48,14 +48,6 @@ function createChatConversationMessages (lib, applib, jquerylib, templateslib, h
     this.checkMessagesSeenability();
     return ret;
   };
-  /*
-  ChatConversationMessagesElement.prototype.prependData = function (messages) {
-    if (lib.isArray(messages) && messages.length>0) {
-      console.log('first message to prepend', messages[0]);
-    }
-    return FromDataCreator.prototype.prependData.call(this, messages);
-  };
-  */
   ChatConversationMessagesElement.prototype.createFromArryData = function (data) {
     var initsubelcount = lib.isArray(this.subElements) ? this.subElements.length : 0,
       finalsubelcount,
@@ -71,6 +63,7 @@ function createChatConversationMessages (lib, applib, jquerylib, templateslib, h
     }
     //if (initsubelcount === 0 || (initoldest !== finaloldest)) {
     if (initsubelcount===0 || wasatbottom) {
+      console.log('scrollElementToBottom!');
       this.scrollElementToBottom();
       return ret;
     }

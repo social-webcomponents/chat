@@ -105,6 +105,15 @@ function createChatConversationHistory (lib, applib, templateslib, htmltemplates
       send.focus();
     } catch (ignore) {console.error(ignore);}
   };
+  ChatConversationHistoryElement.prototype.doLink = function (msgdata) {
+    var modes;
+    msgdata.convid = this.chatId;
+    try {
+      modes = this.getElement('Modes');
+      modes.set('actualchildren', 'Edit');
+      modes.getElement('Link').set('data', msgdata);
+    } catch (ignore) {console.error(ignore);}
+  };
   ChatConversationHistoryElement.prototype.onSendSubmit = function (msg) {
     var modes;
     try {

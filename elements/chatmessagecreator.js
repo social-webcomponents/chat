@@ -146,7 +146,7 @@ function createChatMessageElement (lib, applib, templateslib, htmltemplateslib, 
         'CONTENTS', '{{item.preview.description}}'
       ),o(m.img,
         'CLASS', 'previewimage Image',
-        'ATTRS', 'style="display:{{(item.preview && item.preview.image) ? \'block\' : \'none\'}}" src="{{item.preview.image}}"',
+        'ATTRS', 'style="display:{{(item.preview && item.preview.image) ? \'block\' : \'none\'}}" {{this.previewDimension("width", item)}} {{this.previewDimension("height", item)}} src="{{item.preview.image}}"',
         'CONTENTS', '{{item.preview.description}}'
       )]
     ),o(m.div,
@@ -181,6 +181,17 @@ function createChatMessageElement (lib, applib, templateslib, htmltemplateslib, 
       'CONTENTS', retContent 
     );
   };
+  ChatMessageElement.prototype.previewDimension = function (dimname, item) {
+    var propname;
+    if (!(item && item.preview)) {
+      return '';
+    }
+    propname = 'image'+lib.capitalize(dimname, true);
+    if (!item.preview[propname]) {
+      return;
+    }
+    return dimname+'="'+item.preview[propname]+'"';
+  }
   ChatMessageElement.prototype.onContextMenu_edit = function () {
     this.__parent.__parent.doEdit(this.get('data'));
   };

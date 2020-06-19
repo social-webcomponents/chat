@@ -43,9 +43,27 @@ function createChatWidgetIntegrator (lib, applib) {
         //evnt = args[args.length-1];
         data = groupcandidatesproducer.apply(null, args.slice(1, -1));
         data = lib.isArray(data) ? data.slice() : null;
-        console.log('needGroupInfoDisplay for group', groupdata);
+        //console.log('needGroupInfoDisplay for group', groupdata);
         chatgroupcreatorel.set('data', {group: groupdata, candidates: data});
         chatgroupcreatorel.set('actual', !!data);
+      }
+    });
+  }
+
+  function doTheFullDataHandling (pp, chatinterfacename, logic, fdh) {
+    var producer = fdh.id2fulldata;
+    logic.push({
+      triggers: pp+'.'+chatinterfacename+'!needFullDataForId',
+      references: pp+'.'+chatinterfacename+','+fdh.references,
+      handler: function () {
+        var itf = arguments[0],
+          args = Array.prototype.slice.call(arguments, 1, -1),
+          queryobj = arguments[arguments.length-1],
+          prodres = producer.apply(null, args.concat(queryobj.id));
+        itf.fullDataForId({
+          callback: queryobj.callback,
+          fulldata: prodres
+        });
       }
     });
   }
@@ -79,9 +97,11 @@ function createChatWidgetIntegrator (lib, applib) {
       triggers: '.>initiateChatConversationsWithUsers'+rlm,
       references: pp+','+pp+'.'+chatinterfacename,
       handler: function (me, itf, icc) {
+        /*
         if (!me.get('actual')) {
           return;
         }
+        */
         if (icc.running) {
           return;
         }
@@ -162,6 +182,9 @@ function createChatWidgetIntegrator (lib, applib) {
       doTheNeedGroupCandidates(pp, chatinterfacename, logic, this.config.chatgrouphandling);
     }
     //endof needGroupCandidates
+    if (this.config.fulldatahandling) {
+      doTheFullDataHandling(pp, chatinterfacename, logic, this.config.fulldatahandling);
+    }
     //handle createNewChatGroupWithMembers
     if (this.config.createnewchatgroupwithmemberstrigger) {
       logic.push({
