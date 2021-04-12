@@ -105,7 +105,7 @@ function createChatWidgetIntegrator (lib, applib) {
         if (icc.running) {
           return;
         }
-        console.log('got initiations', icc.result);
+        //console.log('got initiations', icc.result);
         itf.set('data', icc.result);
       }
     },{

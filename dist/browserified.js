@@ -435,6 +435,15 @@ function createChatConversationHistory (lib, applib, templateslib, htmltemplates
     DataElementFollowerMixin.prototype.destroy.call(this);
     DataAwareElement.prototype.__cleanUp.call(this);
   };
+  /*
+  ChatConversationHistoryElement.prototype.set_actual = function (act) {
+    var ret = DataAwareElement.prototype.set_actual.call(this, act);
+    if (act) {
+      this.getElement('Send').focusInABit();
+    }
+    return ret;
+  };
+  */
   ChatConversationHistoryElement.prototype.initChatConversationHistory = function () {
     var sendform;
     try {
@@ -479,6 +488,15 @@ function createChatConversationHistory (lib, applib, templateslib, htmltemplates
       send = this.getElement('Send');
       send.set('contents', msgdata.message);
       send.focus();
+    } catch (ignore) {console.error(ignore);}
+  };
+  ChatConversationHistoryElement.prototype.doLink = function (msgdata) {
+    var modes;
+    msgdata.convid = this.chatId;
+    try {
+      modes = this.getElement('Modes');
+      modes.set('actualchildren', 'Edit');
+      modes.getElement('Link').set('data', msgdata);
     } catch (ignore) {console.error(ignore);}
   };
   ChatConversationHistoryElement.prototype.onSendSubmit = function (msg) {
@@ -820,7 +838,7 @@ function createChatConversationsElement (lib, applib, jquerylib, templateslib, h
     /*
     console.log(this.$element.find('.match-container').filter(hasdataer));
     */
-    console.log(this.config);
+    //console.log(this.config);
     this.$element.find('.match-container').filter(hasdataer).sort(
       chatsorter
     ).appendTo(this.$element.find('.hers-representatives'));
@@ -1080,11 +1098,15 @@ function createSendForm (lib, applib, jquerylib, templateslib, htmltemplateslib,
     this.active = this.createBufferableHookCollection();
     this.focuser = this.onMessageBoxFocused.bind(this);
     this.blurrer = this.onMessageBoxBlurred.bind(this);
+    this.clicker = this.onButtonClicked.bind(this);
   }
   lib.inherit(SendChatMessageFormLogic, FormLogic);
   SendChatMessageFormLogic.prototype.__cleanUp = function () {
+    this.buttonElementOperation('off', 'blur', this.clicker);
     this.messageBoxElementOperation('off', 'blur', this.blurrer);
     this.messageBoxElementOperation('off', 'focus', this.focuser);
+    this.clicker = null;
+    this.blurrer = null;
     this.focuser = null;
     if (this.active) {
       this.active.destroy();
@@ -1126,6 +1148,18 @@ function createSendForm (lib, applib, jquerylib, templateslib, htmltemplateslib,
     }
     this.messageBoxElementOperation('on', 'focus', this.focuser);
     this.messageBoxElementOperation('on', 'blur', this.blurrer);
+    this.buttonElementOperation('on', 'click', this.clicker);
+  };
+  SendChatMessageFormLogic.prototype.buttonElementOperation = function () {
+    var bel;
+    if (!this.$element) {
+      return null;
+    }
+    bel = this.$element.find('button');
+    if (!(bel && bel.length>0)) {
+      return null;
+    }
+    return bel[arguments[0]].apply(bel, Array.prototype.slice.call(arguments, 1));
   };
   SendChatMessageFormLogic.prototype.messageBoxElementOperation = function () {
     var mbel;
@@ -1161,6 +1195,13 @@ function createSendForm (lib, applib, jquerylib, templateslib, htmltemplateslib,
       return;
     }
     this.__parent.onMessageBoxBlurred();
+  };
+  SendChatMessageFormLogic.prototype.onButtonClicked = function () {
+    this.messageBoxElementOperation('focus');
+  };
+  SendChatMessageFormLogic.prototype.focusInABit = function () {
+    console.log('focusInABit');
+    lib.runNext(this.messageBoxElementOperation.bind(this, 'focus'), 20);
   };
 
   SendChatMessageFormLogic.prototype.postInitializationMethodNames = SendChatMessageFormLogic.prototype.postInitializationMethodNames.concat(['initSendChatMessageFormLogic']);
@@ -1589,7 +1630,7 @@ function createChatWidget (lib, applib, templateslib, htmltemplateslib, utils) {
           form.resetForm();
         }
       }*/]
-    }]
+    }].concat(params.elements || []);
 
     return {
       actual: params.actual,
@@ -1717,7 +1758,7 @@ function createChatWidgetIntegrator (lib, applib) {
         if (icc.running) {
           return;
         }
-        console.log('got initiations', icc.result);
+        //console.log('got initiations', icc.result);
         itf.set('data', icc.result);
       }
     },{

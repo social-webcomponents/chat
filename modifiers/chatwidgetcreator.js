@@ -397,7 +397,7 @@ function createChatWidget (lib, applib, templateslib, htmltemplateslib, utils) {
           form.resetForm();
         }
       }*/]
-    }]
+    }].concat(params.elements || []);
 
     return {
       actual: params.actual,

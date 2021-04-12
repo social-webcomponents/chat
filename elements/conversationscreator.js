@@ -58,7 +58,7 @@ function createChatConversationsElement (lib, applib, jquerylib, templateslib, h
     /*
     console.log(this.$element.find('.match-container').filter(hasdataer));
     */
-    console.log(this.config);
+    //console.log(this.config);
     this.$element.find('.match-container').filter(hasdataer).sort(
       chatsorter
     ).appendTo(this.$element.find('.hers-representatives'));

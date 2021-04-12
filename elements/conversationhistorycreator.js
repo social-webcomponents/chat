@@ -59,6 +59,15 @@ function createChatConversationHistory (lib, applib, templateslib, htmltemplates
     DataElementFollowerMixin.prototype.destroy.call(this);
     DataAwareElement.prototype.__cleanUp.call(this);
   };
+  /*
+  ChatConversationHistoryElement.prototype.set_actual = function (act) {
+    var ret = DataAwareElement.prototype.set_actual.call(this, act);
+    if (act) {
+      this.getElement('Send').focusInABit();
+    }
+    return ret;
+  };
+  */
   ChatConversationHistoryElement.prototype.initChatConversationHistory = function () {
     var sendform;
     try {
