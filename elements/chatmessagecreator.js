@@ -40,7 +40,9 @@ function createChatMessageElement (lib, applib, templateslib, htmltemplateslib, 
   };
   ChatMessageElement.prototype.set_data = function (item) {
     var ret;
-    item.message = chatweblib.processMessage(item.message);
+    if (item) {
+      item.message = chatweblib.processMessage(item.message);
+    }
     this.updateHumanReadableCreated(item);
     ret = DataAwareElement.prototype.set_data.call(this, item);
     return ret;
@@ -229,6 +231,9 @@ function createChatMessageElement (lib, applib, templateslib, htmltemplateslib, 
   }
   ChatMessageElement.prototype.containedMessageSeenByMe = function () {
     var d = this.get('data');
+    if (!d) {
+      return false;
+    }
     if (d.from === null) {
       return true; //I sent this msg
     }

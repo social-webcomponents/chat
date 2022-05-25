@@ -75,7 +75,8 @@ function createChatConversationHistory (lib, applib, templateslib, htmltemplates
     } catch (e) {
       return;
     }
-    this.childrenListeners.push(sendform.attachListener('submit', this.onSendSubmit.bind(this)));
+    //this.childrenListeners.push(sendform.attachListener('submit', this.onSendSubmit.bind(this)));
+    this.childrenListeners.push(sendform.wantsSubmit.attach(this.onSendSubmit.bind(this)));
     this.childrenListeners.push(sendform.attachListener('active', this.onSendActive.bind(this)));
   };
   ChatConversationHistoryElement.prototype.onMasterDataChanged = function (data) {

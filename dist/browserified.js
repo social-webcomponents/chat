@@ -41,7 +41,9 @@ function createChatMessageElement (lib, applib, templateslib, htmltemplateslib, 
   };
   ChatMessageElement.prototype.set_data = function (item) {
     var ret;
-    item.message = chatweblib.processMessage(item.message);
+    if (item) {
+      item.message = chatweblib.processMessage(item.message);
+    }
     this.updateHumanReadableCreated(item);
     ret = DataAwareElement.prototype.set_data.call(this, item);
     return ret;
@@ -230,6 +232,9 @@ function createChatMessageElement (lib, applib, templateslib, htmltemplateslib, 
   }
   ChatMessageElement.prototype.containedMessageSeenByMe = function () {
     var d = this.get('data');
+    if (!d) {
+      return false;
+    }
     if (d.from === null) {
       return true; //I sent this msg
     }
@@ -451,7 +456,8 @@ function createChatConversationHistory (lib, applib, templateslib, htmltemplates
     } catch (e) {
       return;
     }
-    this.childrenListeners.push(sendform.attachListener('submit', this.onSendSubmit.bind(this)));
+    //this.childrenListeners.push(sendform.attachListener('submit', this.onSendSubmit.bind(this)));
+    this.childrenListeners.push(sendform.wantsSubmit.attach(this.onSendSubmit.bind(this)));
     this.childrenListeners.push(sendform.attachListener('active', this.onSendActive.bind(this)));
   };
   ChatConversationHistoryElement.prototype.onMasterDataChanged = function (data) {
@@ -660,7 +666,7 @@ function createChatConversationMessages (lib, applib, jquerylib, templateslib, h
       this.noOlder = null;
     }
     ret = FromDataCreator.prototype.set_data.call(this, data);
-    this.checkMessagesSeenability();
+    lib.runNext(this.checkMessagesSeenability.bind(this));
     return ret;
   };
   ChatConversationMessagesElement.prototype.createFromArryData = function (data) {
@@ -757,11 +763,15 @@ function createChatConversationMessages (lib, applib, jquerylib, templateslib, h
     this.findElementAndApply(editedm, 'id', 'updateFromEdit');
   };
   ChatConversationMessagesElement.prototype.findElementAndApply = function (msg, propname4find, methodname) {
-    var affectedwi = lib.arryOperations.findElementAndIndexWithProperty(this.subElements, 'id', 'chatmessage_'+msg[propname4find]);
+    var affectedwi = lib.arryOperations.findElementAndIndexWithProperty(this.subElements, 'id', 'chatmessage_'+msg[propname4find]), elem;
     if (!(affectedwi && affectedwi.element)) {
       return;
     }
-    affectedwi.element[methodname](msg);
+    elem = affectedwi.element;
+    //affectedwi.element[methodname](msg);
+    lib.runNext(elem[methodname].bind(elem, msg));
+    elem = null;
+    msg = null;
   };
 
   ChatConversationMessagesElement.prototype.doPreviewMessage = function (preview) {
@@ -1089,10 +1099,29 @@ module.exports = createModes;
 function createSendForm (lib, applib, jquerylib, templateslib, htmltemplateslib, bufftriglib, utils) {
   'use strict';
 
-  var FormLogic = applib.getElementType('FormLogic'),
+  var FormLogic = applib.getElementType('FormElement'), // applib.getElementType('FormLogic'),
     BufferedTrigger = bufftriglib.BufferedTrigger;
 
   function SendChatMessageFormLogic (id, options) {
+    options = options || {};
+    options.elements = options.elements || [];
+    options.elements.push({
+      name: 'message_text',
+      type: 'PlainHashFieldElement',
+      options: {
+        actual: true,
+        self_selector: 'attrib:name',
+        hashfield: 'message_text',
+        fieldname: 'message_text'
+      }
+    },{
+      name: 'SendSubmit',
+      type: 'ClickableElement',
+      options: {
+        actual: true,
+        self_selector: '.'
+      }
+    });
     FormLogic.call(this, id, options);
     this.trigger = new BufferedTrigger(this.fireActive.bind(this), options.input_timeout||5000);
     this.active = this.createBufferableHookCollection();
@@ -1119,11 +1148,25 @@ function createSendForm (lib, applib, jquerylib, templateslib, htmltemplateslib,
     this.trigger = null;
     FormLogic.prototype.__cleanUp.call(this);
   };
+  SendChatMessageFormLogic.prototype.staticEnvironmentDescriptor = function (myname) {
+    return {
+      links: [{
+        source: 'element.'+myname+':valid',
+        target: 'element.'+myname+'.SendSubmit:enabled'
+      },{
+        source: 'element.'+myname+'.SendSubmit!clicked',
+        target: 'element.'+myname+'>fireSubmit',
+        filter: function (thingy) {
+          return thingy;
+        }
+      }]
+    };
+  };
   SendChatMessageFormLogic.prototype.resetForm = function () {
     if (this.trigger) {
       this.trigger.clearTimeout();
     }
-    FormLogic.prototype.resetForm.call(this);
+    FormLogic.prototype.resetData.call(this);
   };
   SendChatMessageFormLogic.prototype.set_contents = function (val) {
     if (!this.$element) {

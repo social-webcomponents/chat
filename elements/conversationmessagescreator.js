@@ -45,7 +45,7 @@ function createChatConversationMessages (lib, applib, jquerylib, templateslib, h
       this.noOlder = null;
     }
     ret = FromDataCreator.prototype.set_data.call(this, data);
-    this.checkMessagesSeenability();
+    lib.runNext(this.checkMessagesSeenability.bind(this));
     return ret;
   };
   ChatConversationMessagesElement.prototype.createFromArryData = function (data) {
@@ -142,11 +142,15 @@ function createChatConversationMessages (lib, applib, jquerylib, templateslib, h
     this.findElementAndApply(editedm, 'id', 'updateFromEdit');
   };
   ChatConversationMessagesElement.prototype.findElementAndApply = function (msg, propname4find, methodname) {
-    var affectedwi = lib.arryOperations.findElementAndIndexWithProperty(this.subElements, 'id', 'chatmessage_'+msg[propname4find]);
+    var affectedwi = lib.arryOperations.findElementAndIndexWithProperty(this.subElements, 'id', 'chatmessage_'+msg[propname4find]), elem;
     if (!(affectedwi && affectedwi.element)) {
       return;
     }
-    affectedwi.element[methodname](msg);
+    elem = affectedwi.element;
+    //affectedwi.element[methodname](msg);
+    lib.runNext(elem[methodname].bind(elem, msg));
+    elem = null;
+    msg = null;
   };
 
   ChatConversationMessagesElement.prototype.doPreviewMessage = function (preview) {

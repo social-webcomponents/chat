@@ -1,10 +1,29 @@
 function createSendForm (lib, applib, jquerylib, templateslib, htmltemplateslib, bufftriglib, utils) {
   'use strict';
 
-  var FormLogic = applib.getElementType('FormLogic'),
+  var FormLogic = applib.getElementType('FormElement'), // applib.getElementType('FormLogic'),
     BufferedTrigger = bufftriglib.BufferedTrigger;
 
   function SendChatMessageFormLogic (id, options) {
+    options = options || {};
+    options.elements = options.elements || [];
+    options.elements.push({
+      name: 'message_text',
+      type: 'PlainHashFieldElement',
+      options: {
+        actual: true,
+        self_selector: 'attrib:name',
+        hashfield: 'message_text',
+        fieldname: 'message_text'
+      }
+    },{
+      name: 'SendSubmit',
+      type: 'ClickableElement',
+      options: {
+        actual: true,
+        self_selector: '.'
+      }
+    });
     FormLogic.call(this, id, options);
     this.trigger = new BufferedTrigger(this.fireActive.bind(this), options.input_timeout||5000);
     this.active = this.createBufferableHookCollection();
@@ -31,11 +50,25 @@ function createSendForm (lib, applib, jquerylib, templateslib, htmltemplateslib,
     this.trigger = null;
     FormLogic.prototype.__cleanUp.call(this);
   };
+  SendChatMessageFormLogic.prototype.staticEnvironmentDescriptor = function (myname) {
+    return {
+      links: [{
+        source: 'element.'+myname+':valid',
+        target: 'element.'+myname+'.SendSubmit:enabled'
+      },{
+        source: 'element.'+myname+'.SendSubmit!clicked',
+        target: 'element.'+myname+'>fireSubmit',
+        filter: function (thingy) {
+          return thingy;
+        }
+      }]
+    };
+  };
   SendChatMessageFormLogic.prototype.resetForm = function () {
     if (this.trigger) {
       this.trigger.clearTimeout();
     }
-    FormLogic.prototype.resetForm.call(this);
+    FormLogic.prototype.resetData.call(this);
   };
   SendChatMessageFormLogic.prototype.set_contents = function (val) {
     if (!this.$element) {
