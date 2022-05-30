@@ -633,6 +633,7 @@ function createChatConversationMessages (lib, applib, jquerylib, templateslib, h
     this.needOlder = this.createBufferableHookCollection();
     this.messageSeen = this.createBufferableHookCollection();
     this.reportMessageSeen = new lib.DIContainer();
+    this.unreadMessagesMarker = jQuery('<div>Unread Messages</div>');
     this.oldestId = null;
     this.noOlder = null;
   }
@@ -642,6 +643,7 @@ function createChatConversationMessages (lib, applib, jquerylib, templateslib, h
   ChatConversationMessagesElement.prototype.__cleanUp = function () {
     this.noOlder = null;
     this.oldestId = null;
+    this.unreadMessagesMarker = null;
     if (this.reportMessageSeen) {
       this.reportMessageSeen.destroy();
     }
@@ -677,18 +679,19 @@ function createChatConversationMessages (lib, applib, jquerylib, templateslib, h
       wasatbottom = this.elementIsScrolledToBottom(),
       ret;
     ret = FromDataCreator.prototype.createFromArryData.call(this, data);
-    finalsubelcount = lib.isArray(this.subElements) ? this.subElements.length : 0;
-    finaloldest = this.oldestId;
-    if (initsubelcount === finalsubelcount) {
+    this.allSubElementsActual().then(this.onCreatedFromArryDataActual.bind(this));
+  };
+  ChatConversationMessagesElement.prototype.onCreatedFromArryDataActual = function () {
+    var notseen;
+    if (!lib.isArray(this.subElements)) {return;}
+    notseen = this.subElements.reduce(notMyMessageElNotSeenByMe, null);
+    this.unreadMessagesMarker.remove();
+    if (!notseen) {
+      this.scrollElementToBottom();
       return;
     }
-    //if (initsubelcount === 0 || (initoldest !== finaloldest)) {
-    if (initsubelcount===0 || wasatbottom) {
-      console.log('scrollElementToBottom!');
-      this.scrollElementToBottom();
-      return ret;
-    }
-    return ret;
+    notseen.$element.before(this.unreadMessagesMarker);
+    this.scrollToSeeElementAtBottom(this.unreadMessagesMarker);
   };
   ChatConversationMessagesElement.prototype.createFromArryItem = function (item) {
     if (item.oldest) {
@@ -750,6 +753,7 @@ function createChatConversationMessages (lib, applib, jquerylib, templateslib, h
     };
     this.doSeenMessage(mymsgseen);
     this.doRcvdMessage(mymsgrcvd);
+    msg.seen = true;
     this.messageSeen.fire(msg.id);
   };
 
@@ -781,6 +785,22 @@ function createChatConversationMessages (lib, applib, jquerylib, templateslib, h
     }
     affectedwi.element.updatePreview(preview);
   };
+
+  function notMyMessageElNotSeenByMe (res, el) {
+    var data;
+    if (!el) {return res;}
+    data = el.get('data');
+    if (!data) {return res;}
+    //console.log('notMyMessageElNotSeenByMe', data);
+    if (data.from == null) {return res;}
+    if (data.seen) {return res;}
+    if (res) {
+      if (res.get('data').created < data.created) {
+        return res;
+      }
+    }
+    return el;
+  }
 
   applib.registerElementType('ChatConversationMessages', ChatConversationMessagesElement);
 }
